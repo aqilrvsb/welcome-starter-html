@@ -329,12 +329,31 @@ async function initializeAzureStt(session: any) {
       const timestamp = new Date().toISOString();
       const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      // Config message with subscription key in header
-      const configPayload = `Path: speech.config\r\nOcp-Apim-Subscription-Key: ${AZURE_SPEECH_KEY}\r\nContent-Type: application/json; charset=utf-8\r\nX-RequestId: ${requestId}\r\nX-ConnectionId: ${session.azureConnectionId}\r\nX-Timestamp: ${timestamp}\r\n\r\n${JSON.stringify(configMessage)}`;
+      // Azure WebSocket protocol requires binary format for ALL messages:
+      // [2 bytes: header length (little-endian)] + [header text] + [body]
+      const configHeader = `Path: speech.config\r\nContent-Type: application/json; charset=utf-8\r\nX-RequestId: ${requestId}\r\nX-Timestamp: ${timestamp}\r\n\r\n`;
+      const configBody = JSON.stringify(configMessage);
+      
+      const headerBytes = new TextEncoder().encode(configHeader);
+      const bodyBytes = new TextEncoder().encode(configBody);
+      const headerLength = headerBytes.length;
+
+      // Create buffer: 2-byte header length + header + body
+      const configPayload = new Uint8Array(2 + headerLength + bodyBytes.length);
+      
+      // Write header length as little-endian 16-bit integer
+      configPayload[0] = headerLength & 0xFF;
+      configPayload[1] = (headerLength >> 8) & 0xFF;
+      
+      // Write header text
+      configPayload.set(headerBytes, 2);
+      
+      // Write body
+      configPayload.set(bodyBytes, 2 + headerLength);
 
       try {
         azureSocket.send(configPayload);
-        console.log("✅ Sent Azure Speech configuration");
+        console.log("✅ Sent Azure Speech configuration (binary format)");
       } catch (error) {
         console.error("❌ Failed to send Azure config:", error);
       }
