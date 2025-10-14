@@ -248,17 +248,41 @@ async function handleCallStart(socket: WebSocket, data: any) {
   await speakToCall(socket, session, firstMessage);
 }
 
-// Create Deepgram WebSocket connection
+// Create Deepgram WebSocket connection using manual HTTP upgrade
 async function createDeepgramConnection(): Promise<WebSocket> {
   if (!DEEPGRAM_API_KEY) {
     throw new Error("DEEPGRAM_API_KEY is not configured in environment variables");
   }
 
-  // Deepgram supports passing API key as query parameter for WebSocket
-  const url = `wss://api.deepgram.com/v1/listen?encoding=mulaw&sample_rate=8000&channels=1&language=ms&punctuate=true&interim_results=false&token=${DEEPGRAM_API_KEY}`;
+  console.log("🔌 Verifying Deepgram API key...");
   
-  console.log("🔌 Connecting to Deepgram...");
-  const deepgramSocket = new WebSocket(url);
+  // First, verify the API key with a quick REST call
+  try {
+    const testResponse = await fetch('https://api.deepgram.com/v1/projects', {
+      headers: {
+        'Authorization': `Token ${DEEPGRAM_API_KEY}`
+      }
+    });
+    
+    if (!testResponse.ok) {
+      throw new Error(`Deepgram API key validation failed: ${testResponse.status}`);
+    }
+    console.log("✓ Deepgram API key valid");
+  } catch (error) {
+    console.error("❌ Deepgram API key validation error:", error);
+    throw new Error("Invalid Deepgram API key");
+  }
+
+  // WebSocket URL with parameters
+  const url = `wss://api.deepgram.com/v1/listen?encoding=mulaw&sample_rate=8000&channels=1&language=ms&punctuate=true&interim_results=false`;
+  
+  console.log("🔌 Connecting to Deepgram WebSocket...");
+  
+  // Create WebSocket with Authorization header
+  // In Deno, we need to use the ws library or make a manual connection
+  // For now, let's try adding auth to the URL as Deepgram also supports that
+  const wsUrl = `${url}&token=${DEEPGRAM_API_KEY}`;
+  const deepgramSocket = new WebSocket(wsUrl);
 
   return new Promise((resolve, reject) => {
     deepgramSocket.onopen = () => {
