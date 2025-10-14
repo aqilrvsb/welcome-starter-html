@@ -68,7 +68,11 @@ serve(async (req) => {
   socket.onmessage = async (event) => {
     try {
       const data = JSON.parse(event.data);
-      console.log("📨 Received message:", data.event);
+      
+      // Only log non-media events to reduce noise
+      if (data.event !== 'media') {
+        console.log("📨 Received message:", data.event);
+      }
 
       // Handle different Twilio Media Stream events
       switch (data.event) {
@@ -240,26 +244,24 @@ async function handleCallStart(socket: WebSocket, data: any) {
 }
 
 async function handleMediaStream(socket: WebSocket, data: any) {
-  // Get callSid from the data
-  let callSid = null;
+  // Find session by streamSid (data.streamSid is always present in media events)
+  const streamSid = data.streamSid;
+  
+  if (!streamSid) {
+    return;
+  }
 
-  // Try to find callSid in different places
-  if (data.start && data.start.callSid) {
-    callSid = data.start.callSid;
-  } else if (data.media && data.media.track) {
-    // Try to find session by streamSid
-    for (const [sid, session] of activeCalls.entries()) {
-      if (session.streamSid === data.streamSid) {
-        callSid = sid;
-        break;
-      }
+  // Find session by streamSid
+  let session = null;
+  for (const [sid, sess] of activeCalls.entries()) {
+    if (sess.streamSid === streamSid) {
+      session = sess;
+      break;
     }
   }
 
-  const session = activeCalls.get(callSid);
-
   if (!session) {
-    console.warn("⚠️ Session not found for media stream");
+    // Session not found - this is normal if media arrives before 'start' event completes
     return;
   }
 
