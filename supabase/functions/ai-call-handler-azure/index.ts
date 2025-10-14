@@ -65,7 +65,11 @@ serve(async (req) => {
   socket.onmessage = async (event) => {
     try {
       const data = JSON.parse(event.data);
-      console.log("📨 Received message:", data.event);
+      
+      // Only log non-media events to reduce noise
+      if (data.event !== 'media') {
+        console.log("📨 Received message:", data.event);
+      }
 
       // Handle different Twilio Media Stream events
       switch (data.event) {
@@ -234,9 +238,12 @@ async function handleCallStart(socket: WebSocket, data: any) {
   // Store session BEFORE initializing Azure to handle early media events
   activeCalls.set(callSid, session);
   console.log(`✅ Session registered: callSid=${callSid}, streamSid=${streamSid}`);
+  console.log(`📊 Total active sessions: ${activeCalls.size}`);
 
   // Initialize Azure Speech WebSocket connection
+  console.log(`🔄 Starting Azure STT initialization...`);
   await initializeAzureStt(session);
+  console.log(`✅ Azure STT initialization completed`);
 
   console.log(`💬 System Prompt: ${systemPrompt.substring(0, 100)}...`);
   console.log(`🎤 First Message: ${firstMessage}`);
