@@ -243,6 +243,39 @@ async function handleCallStart(socket: WebSocket, data: any) {
   await speakToCall(socket, session, firstMessage);
 }
 
+// Helper function to create WAV header for µ-law audio
+function createWavHeader(audioLength: number): Uint8Array {
+  const header = new ArrayBuffer(58); // WAV header size for µ-law
+  const view = new DataView(header);
+  
+  // RIFF chunk descriptor
+  view.setUint32(0, 0x52494646, false); // "RIFF"
+  view.setUint32(4, audioLength + 50, true); // File size - 8
+  view.setUint32(8, 0x57415645, false); // "WAVE"
+  
+  // fmt sub-chunk
+  view.setUint32(12, 0x666d7420, false); // "fmt "
+  view.setUint32(16, 18, true); // fmt chunk size (18 for µ-law)
+  view.setUint16(20, 7, true); // Audio format (7 = µ-law)
+  view.setUint16(22, 1, true); // Number of channels (1 = mono)
+  view.setUint32(24, 8000, true); // Sample rate (8000 Hz)
+  view.setUint32(28, 8000, true); // Byte rate (sample rate * channels * bits per sample / 8)
+  view.setUint16(32, 1, true); // Block align (channels * bits per sample / 8)
+  view.setUint16(34, 8, true); // Bits per sample (8 for µ-law)
+  view.setUint16(36, 0, true); // Extension size (0 for basic µ-law)
+  
+  // fact chunk (required for non-PCM formats)
+  view.setUint32(38, 0x66616374, false); // "fact"
+  view.setUint32(42, 4, true); // fact chunk size
+  view.setUint32(46, audioLength, true); // Number of samples
+  
+  // data sub-chunk
+  view.setUint32(50, 0x64617461, false); // "data"
+  view.setUint32(54, audioLength, true); // Data size
+  
+  return new Uint8Array(header);
+}
+
 async function handleMediaStream(socket: WebSocket, data: any) {
   // Find session by streamSid (data.streamSid is always present in media events)
   const streamSid = data.streamSid;
@@ -310,7 +343,16 @@ async function handleMediaStream(socket: WebSocket, data: any) {
 
 async function transcribeAudio(session: any, audioBytes: Uint8Array) {
   try {
-    // audioBytes is already raw µ-law audio data
+    // audioBytes is raw µ-law audio data
+    // Azure needs it wrapped in a WAV container with proper headers
+
+    // Create WAV header for µ-law audio
+    const wavHeader = createWavHeader(audioBytes.length);
+    
+    // Combine WAV header + µ-law audio data
+    const wavFile = new Uint8Array(wavHeader.length + audioBytes.length);
+    wavFile.set(wavHeader, 0);
+    wavFile.set(audioBytes, wavHeader.length);
 
     // Use Azure Speech REST API for transcription
     const response = await fetch(
@@ -319,10 +361,10 @@ async function transcribeAudio(session: any, audioBytes: Uint8Array) {
         method: 'POST',
         headers: {
           'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY || '',
-          'Content-Type': 'audio/x-mulaw; samplerate=8000',
+          'Content-Type': 'audio/wav',
           'Accept': 'application/json'
         },
-        body: audioBytes as unknown as BodyInit
+        body: wavFile as unknown as BodyInit
       }
     );
 
