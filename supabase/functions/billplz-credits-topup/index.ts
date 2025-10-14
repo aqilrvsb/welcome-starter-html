@@ -1,0 +1,244 @@
+/**
+ * Billplz Credits Top-Up Handler
+ *
+ * Allows clients to buy credits via Billplz/FPX payment
+ * Credits are added to their account after successful payment
+ */
+
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+const supabase = createClient(
+  Deno.env.get('SUPABASE_URL') ?? '',
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+);
+
+const BILLPLZ_API_KEY = Deno.env.get('BILLPLZ_API_KEY');
+const BILLPLZ_BASE_URL = 'https://www.billplz.com/api/v3';
+const BILLPLZ_COLLECTION_ID = Deno.env.get('BILLPLZ_COLLECTION_ID') || 'watojri1';
+
+const handler = async (req: Request): Promise<Response> => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const contentType = req.headers.get('content-type') || '';
+
+    // Check if it's a webhook from Billplz
+    if (req.method === 'POST' && contentType.includes('application/x-www-form-urlencoded')) {
+      return await handleWebhook(req);
+    }
+
+    // Regular API call from frontend
+    const body = await req.json();
+    const { user_id, amount, description } = body;
+
+    if (!user_id || !amount) {
+      return new Response(
+        JSON.stringify({ error: 'user_id and amount are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (amount < 10) {
+      return new Response(
+        JSON.stringify({ error: 'Minimum top-up amount is RM10' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Get user data
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('username, email')
+      .eq('id', user_id)
+      .single();
+
+    if (userError || !userData) {
+      return new Response(
+        JSON.stringify({ error: 'User not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const userName = userData.username || 'User';
+    const userEmail = userData.email || `${user_id.substring(0, 8)}@custom.local`;
+
+    // Create payment record in database
+    const { data: payment, error: paymentError } = await supabase
+      .from('payments')
+      .insert({
+        user_id,
+        amount,
+        currency: 'MYR',
+        status: 'pending',
+        metadata: {
+          type: 'credits_topup',
+          description: description || `Credits Top-up RM${amount}`
+        }
+      })
+      .select()
+      .single();
+
+    if (paymentError) {
+      console.error('Error creating payment record:', paymentError);
+      throw new Error('Failed to create payment record');
+    }
+
+    // Get app origin for redirect
+    let appOrigin = Deno.env.get('APP_ORIGIN');
+    if (!appOrigin) {
+      const projectId = Deno.env.get('SUPABASE_URL')?.includes('ahexnoaazbveiyhplfrc')
+        ? 'ahexnoaazbveiyhplfrc'
+        : '';
+      appOrigin = `https://${projectId}.lovable.app`;
+    }
+
+    // Create Billplz bill
+    const billPlzData = new URLSearchParams({
+      collection_id: BILLPLZ_COLLECTION_ID,
+      email: userEmail,
+      name: userName,
+      amount: (amount * 100).toString(), // Convert to cents
+      description: description || `Credits Top-up RM${amount}`,
+      callback_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/billplz-credits-topup`,
+      redirect_url: `${appOrigin}/credits-topup`,
+      reference_1_label: 'Credits Top-up',
+      reference_1: `RM${amount}`
+    });
+
+    const response = await fetch(`${BILLPLZ_BASE_URL}/bills`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${btoa(BILLPLZ_API_KEY + ':')}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: billPlzData.toString(),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('BillPlz API error:', errorText);
+      throw new Error(`BillPlz API error: ${response.status}`);
+    }
+
+    const billData = await response.json();
+
+    // Update payment record with Billplz bill ID
+    await supabase
+      .from('payments')
+      .update({
+        billplz_bill_id: billData.id,
+        billplz_url: billData.url,
+        metadata: {
+          type: 'credits_topup',
+          description: description || `Credits Top-up RM${amount}`,
+          billplz_data: billData
+        }
+      })
+      .eq('id', payment.id);
+
+    console.log('✅ Billplz bill created:', billData.id);
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        bill_id: billData.id,
+        payment_url: billData.url,
+        payment_id: payment.id,
+        amount: amount
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+
+  } catch (error: any) {
+    console.error('Error in billplz-credits-topup:', error);
+    return new Response(
+      JSON.stringify({ error: error.message }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      }
+    );
+  }
+};
+
+async function handleWebhook(req: Request): Promise<Response> {
+  try {
+    const formData = await req.formData();
+
+    const billplz_id = formData.get('id') as string || formData.get('billplz[id]') as string;
+    const billplz_paid = formData.get('paid') as string || formData.get('billplz[paid]') as string;
+    const billplz_paid_at = formData.get('paid_at') as string || formData.get('billplz[paid_at]') as string;
+
+    console.log('🔔 Webhook received - Bill ID:', billplz_id, 'Paid:', billplz_paid);
+
+    if (!billplz_id) {
+      return new Response('Missing bill ID', { status: 400 });
+    }
+
+    // Find payment record
+    const { data: payment, error: paymentError } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('billplz_bill_id', billplz_id)
+      .maybeSingle();
+
+    if (paymentError || !payment) {
+      console.error('Payment not found:', billplz_id);
+      return new Response('Payment not found', { status: 404 });
+    }
+
+    // Update payment status
+    const newStatus = billplz_paid === 'true' ? 'paid' : 'failed';
+    const paid_at = billplz_paid === 'true' && billplz_paid_at ? new Date(billplz_paid_at) : null;
+
+    await supabase
+      .from('payments')
+      .update({
+        status: newStatus,
+        paid_at,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', payment.id);
+
+    console.log(`💳 Payment ${payment.id} status updated to: ${newStatus}`);
+
+    // If payment successful, add credits to user's account
+    if (billplz_paid === 'true') {
+      console.log(`💰 Adding RM${payment.amount} credits to user ${payment.user_id}`);
+
+      // Use the database function to add credits
+      const { error: creditsError } = await supabase.rpc('add_credits', {
+        p_user_id: payment.user_id,
+        p_amount: payment.amount,
+        p_payment_id: payment.id,
+        p_description: `Credits top-up - RM${payment.amount} via Billplz`
+      });
+
+      if (creditsError) {
+        console.error('❌ Error adding credits:', creditsError);
+        return new Response('Error adding credits', { status: 500 });
+      }
+
+      console.log(`✅ Credits added successfully to user ${payment.user_id}`);
+    }
+
+    return new Response('OK', { status: 200 });
+
+  } catch (error: any) {
+    console.error('❌ Error processing webhook:', error);
+    return new Response('Internal server error', { status: 500 });
+  }
+}
+
+serve(handler);

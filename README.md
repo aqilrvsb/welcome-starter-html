@@ -1,8 +1,22 @@
-# Welcome to your Lovable project
+# AI Call Pro - Intelligent Voice AI System
 
 ## Project info
 
-**URL**: https://lovable.dev/projects/b313153d-7168-408c-a31d-f63b80c3eb45
+**URL**: https://lovable.dev/projects/c0e8d67f-2250-456c-a7dc-354b2b4f1ce6
+
+**Live App**: https://aicallqapro.com
+
+**Edge Function**: `ai-call-handler-azure` (Supabase)
+
+## About
+
+AI Call Pro is an intelligent voice AI system that enables automated phone conversations powered by:
+- **Azure Speech Services** - High-accuracy speech-to-text for Malay language
+- **OpenRouter GPT-4o-mini** - AI conversation engine
+- **ElevenLabs** - Natural text-to-speech voice generation
+- **Twilio** - Phone call infrastructure
+
+**Last Updated**: October 12, 2025 - Azure STT WebSocket integration with enhanced validation
 
 ## How can I edit this code?
 
@@ -10,7 +24,7 @@ There are several ways of editing your application.
 
 **Use Lovable**
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/b313153d-7168-408c-a31d-f63b80c3eb45) and start prompting.
+Simply visit the [Lovable Project](https://lovable.dev/projects/c0e8d67f-2250-456c-a7dc-354b2b4f1ce6) and start prompting.
 
 Changes made via Lovable will be committed automatically to this repo.
 
@@ -62,7 +76,7 @@ This project is built with:
 
 ## How can I deploy this project?
 
-Simply open [Lovable](https://lovable.dev/projects/b313153d-7168-408c-a31d-f63b80c3eb45) and click on Share -> Publish.
+Simply open [Lovable](https://lovable.dev/projects/c0e8d67f-2250-456c-a7dc-354b2b4f1ce6) and click on Share -> Publish.
 
 ## Can I connect a custom domain to my Lovable project?
 
