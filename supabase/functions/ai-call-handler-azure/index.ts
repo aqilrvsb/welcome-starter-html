@@ -221,7 +221,7 @@ async function handleCallStart(socket: WebSocket, data: any) {
     conversationHistory: [
       { role: 'system', content: systemPrompt }
     ],
-    audioBuffer: [], // Buffer for incoming audio
+    audioBuffer: [] as Uint8Array[], // Buffer for incoming audio (raw bytes)
     isProcessingAudio: false, // Flag to prevent concurrent processing
     silenceCounter: 0, // Count silent frames to detect speech pauses
 
@@ -270,38 +270,48 @@ async function handleMediaStream(socket: WebSocket, data: any) {
     // Payload is base64-encoded µ-law audio (20ms chunks, 160 bytes)
     const audioPayload = data.media.payload;
 
-    // Add to buffer
-    session.audioBuffer.push(audioPayload);
+    // Decode base64 to binary immediately to avoid concatenation issues
+    try {
+      const binaryString = atob(audioPayload);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      
+      // Add raw bytes to buffer
+      session.audioBuffer.push(bytes);
 
-    // Process buffer when we have enough audio (500ms worth = 25 chunks)
-    // OR when we detect silence (for better responsiveness)
-    if (session.audioBuffer.length >= 25 && !session.isProcessingAudio) {
-      session.isProcessingAudio = true;
+      // Process buffer when we have enough audio (500ms worth = 25 chunks)
+      if (session.audioBuffer.length >= 25 && !session.isProcessingAudio) {
+        session.isProcessingAudio = true;
 
-      // Combine all buffered chunks
-      const combinedAudio = session.audioBuffer.join('');
-      session.audioBuffer = []; // Clear buffer
+        // Combine all buffered byte arrays
+        const totalLength = session.audioBuffer.reduce((acc: number, arr: Uint8Array) => acc + arr.length, 0);
+        const combinedAudio = new Uint8Array(totalLength);
+        let offset = 0;
+        for (const chunk of session.audioBuffer) {
+          combinedAudio.set(chunk, offset);
+          offset += chunk.length;
+        }
+        
+        session.audioBuffer = []; // Clear buffer
 
-      // Transcribe audio using Azure Speech REST API
-      await transcribeAudio(session, combinedAudio);
+        // Transcribe audio using Azure Speech REST API
+        await transcribeAudio(session, combinedAudio);
 
-      session.isProcessingAudio = false;
+        session.isProcessingAudio = false;
+      }
+    } catch (error) {
+      console.error("❌ Error decoding audio chunk:", error);
     }
   }
 }
 
-async function transcribeAudio(session: any, base64Audio: string) {
+async function transcribeAudio(session: any, audioBytes: Uint8Array) {
   try {
-    // Convert base64 µ-law to binary
-    const binaryString = atob(base64Audio);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
+    // audioBytes is already raw µ-law audio data
 
     // Use Azure Speech REST API for transcription
-    // This is more reliable than WebSocket for this use case
     const response = await fetch(
       `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=ms-MY&format=detailed`,
       {
@@ -311,7 +321,7 @@ async function transcribeAudio(session: any, base64Audio: string) {
           'Content-Type': 'audio/x-mulaw; samplerate=8000',
           'Accept': 'application/json'
         },
-        body: bytes
+        body: audioBytes as unknown as BodyInit
       }
     );
 
