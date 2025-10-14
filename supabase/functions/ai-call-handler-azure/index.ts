@@ -338,12 +338,18 @@ async function initializeAzureStt(session: any) {
       const bodyBytes = new TextEncoder().encode(configBody);
       const headerLength = headerBytes.length;
 
+      console.log(`📏 Config header length: ${headerLength} bytes`);
+      console.log(`📏 Config body length: ${bodyBytes.length} bytes`);
+      console.log(`📏 Total payload size: ${2 + headerLength + bodyBytes.length} bytes`);
+
       // Create buffer: 2-byte header length + header + body
       const configPayload = new Uint8Array(2 + headerLength + bodyBytes.length);
       
       // Write header length as little-endian 16-bit integer
       configPayload[0] = headerLength & 0xFF;
       configPayload[1] = (headerLength >> 8) & 0xFF;
+      
+      console.log(`📏 Header length bytes: [${configPayload[0]}, ${configPayload[1]}]`);
       
       // Write header text
       configPayload.set(headerBytes, 2);
@@ -354,6 +360,7 @@ async function initializeAzureStt(session: any) {
       try {
         azureSocket.send(configPayload);
         console.log("✅ Sent Azure Speech configuration (binary format)");
+        console.log(`📤 First 50 bytes: ${Array.from(configPayload.slice(0, 50)).map(b => b.toString(16).padStart(2, '0')).join(' ')}`);
       } catch (error) {
         console.error("❌ Failed to send Azure config:", error);
       }
@@ -412,16 +419,19 @@ async function initializeAzureStt(session: any) {
     azureSocket.onerror = (error) => {
       console.error("❌ Azure Speech WebSocket error:", error);
       console.error("Error details:", JSON.stringify(error));
+      console.error("WebSocket state:", azureSocket.readyState);
     };
 
     azureSocket.onclose = (event) => {
       console.log(`🔌 Azure Speech WebSocket closed - Code: ${event.code}, Reason: ${event.reason || 'No reason provided'}`);
+      console.log(`🔍 Close event details - wasClean: ${event.wasClean}, code: ${event.code}`);
 
       // Try to reconnect if closed unexpectedly during active call
       if (event.code !== 1000 && session && activeCalls.has(session.callSid)) {
         console.log("⚠️ Unexpected closure, attempting reconnect in 2 seconds...");
         setTimeout(() => {
           if (activeCalls.has(session.callSid)) {
+            console.log("🔄 Attempting to reconnect Azure WebSocket...");
             initializeAzureStt(session);
           }
         }, 2000);
