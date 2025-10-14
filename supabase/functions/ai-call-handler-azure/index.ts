@@ -231,10 +231,12 @@ async function handleCallStart(socket: WebSocket, data: any) {
     azureConnectionId: null
   };
 
+  // Store session BEFORE initializing Azure to handle early media events
+  activeCalls.set(callSid, session);
+  console.log(`✅ Session registered: callSid=${callSid}, streamSid=${streamSid}`);
+
   // Initialize Azure Speech WebSocket connection
   await initializeAzureStt(session);
-
-  activeCalls.set(callSid, session);
 
   console.log(`💬 System Prompt: ${systemPrompt.substring(0, 100)}...`);
   console.log(`🎤 First Message: ${firstMessage}`);
@@ -423,26 +425,39 @@ async function initializeAzureStt(session: any) {
 }
 
 async function handleMediaStream(socket: WebSocket, data: any) {
-  // Get callSid from the data
-  let callSid = null;
+  // Media events include streamSid, find the session by it
+  const streamSid = data.streamSid;
+  
+  if (!streamSid) {
+    console.warn("⚠️ No streamSid in media event");
+    return;
+  }
 
-  // Try to find callSid in different places
-  if (data.start && data.start.callSid) {
-    callSid = data.start.callSid;
-  } else if (data.media && data.media.track) {
-    // Try to find session by streamSid
-    for (const [sid, session] of activeCalls.entries()) {
-      if (session.streamSid === data.streamSid) {
-        callSid = sid;
-        break;
-      }
+  // Find session by streamSid
+  let session = null;
+  for (const [sid, sess] of activeCalls.entries()) {
+    if (sess.streamSid === streamSid) {
+      session = sess;
+      break;
     }
   }
 
-  const session = activeCalls.get(callSid);
+  if (!session) {
+    console.warn(`⚠️ No session found for streamSid: ${streamSid}`);
+    console.log(`📊 Active sessions: ${activeCalls.size}`);
+    for (const [sid, sess] of activeCalls.entries()) {
+      console.log(`  - CallSid: ${sid}, StreamSid: ${sess.streamSid}`);
+    }
+    return;
+  }
 
-  if (!session || !session.azureSttSocket) {
-    console.warn("⚠️ Session or Azure STT socket not found for media stream");
+  if (!session.azureSttSocket) {
+    console.warn("⚠️ Azure STT socket not initialized");
+    return;
+  }
+
+  if (session.azureSttSocket.readyState !== WebSocket.OPEN) {
+    console.warn(`⚠️ Azure STT WebSocket not ready. State: ${session.azureSttSocket.readyState}`);
     return;
   }
 
@@ -451,37 +466,31 @@ async function handleMediaStream(socket: WebSocket, data: any) {
     // Payload is base64-encoded µ-law audio from Twilio
     const audioPayload = data.media.payload;
 
-    // Send audio to Azure Speech WebSocket in the correct format
-    if (session.azureSttSocket.readyState === WebSocket.OPEN) {
-      try {
-        // Decode base64 to binary
-        const binaryString = atob(audioPayload);
-        const len = binaryString.length;
-        const audioBytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          audioBytes[i] = binaryString.charCodeAt(i);
-        }
-
-        // Azure Speech WebSocket protocol requires audio to be sent with specific headers
-        // Format: Path: audio\r\nOcp-Apim-Subscription-Key: KEY\r\nContent-Type: audio/x-mulaw\r\n\r\n<binary audio>
-        const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-        const timestamp = new Date().toISOString();
-
-        const audioHeader = `Path: audio\r\nAuthorization: Bearer ${session.azureAuthToken}\r\nContent-Type: audio/x-mulaw; codec=mulaw; samplerate=8000\r\nX-RequestId: ${requestId}\r\nX-ConnectionId: ${session.azureConnectionId}\r\nX-Timestamp: ${timestamp}\r\n\r\n`;
-
-        // Combine header (text) and audio (binary)
-        const headerBytes = new TextEncoder().encode(audioHeader);
-        const combined = new Uint8Array(headerBytes.length + audioBytes.length);
-        combined.set(headerBytes, 0);
-        combined.set(audioBytes, headerBytes.length);
-
-        // Send to Azure WebSocket
-        session.azureSttSocket.send(combined);
-      } catch (error) {
-        console.error("❌ Error sending audio to Azure STT:", error);
+    try {
+      // Decode base64 to binary
+      const binaryString = atob(audioPayload);
+      const len = binaryString.length;
+      const audioBytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        audioBytes[i] = binaryString.charCodeAt(i);
       }
-    } else {
-      console.warn(`⚠️ Azure STT WebSocket not ready. State: ${session.azureSttSocket.readyState}`);
+
+      // Azure Speech WebSocket protocol requires audio to be sent with specific headers
+      const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const timestamp = new Date().toISOString();
+
+      const audioHeader = `Path: audio\r\nAuthorization: Bearer ${session.azureAuthToken}\r\nContent-Type: audio/x-mulaw; codec=mulaw; samplerate=8000\r\nX-RequestId: ${requestId}\r\nX-ConnectionId: ${session.azureConnectionId}\r\nX-Timestamp: ${timestamp}\r\n\r\n`;
+
+      // Combine header (text) and audio (binary)
+      const headerBytes = new TextEncoder().encode(audioHeader);
+      const combined = new Uint8Array(headerBytes.length + audioBytes.length);
+      combined.set(headerBytes, 0);
+      combined.set(audioBytes, headerBytes.length);
+
+      // Send to Azure WebSocket
+      session.azureSttSocket.send(combined);
+    } catch (error) {
+      console.error("❌ Error sending audio to Azure STT:", error);
     }
   }
 }
