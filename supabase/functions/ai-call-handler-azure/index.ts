@@ -30,6 +30,13 @@ const DEEPGRAM_API_KEY = Deno.env.get('DEEPGRAM_API_KEY');
 const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
 const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
 
+// Log API key status (without exposing the actual keys)
+console.log("🔑 API Keys status:", {
+  deepgram: DEEPGRAM_API_KEY ? "✓ Set" : "✗ Missing",
+  openrouter: OPENROUTER_API_KEY ? "✓ Set" : "✗ Missing",
+  elevenlabs: ELEVENLABS_API_KEY ? "✓ Set" : "✗ Missing"
+});
+
 const supabaseAdmin = createClient(
   Deno.env.get('SUPABASE_URL') ?? '',
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -249,9 +256,14 @@ async function handleCallStart(socket: WebSocket, data: any) {
 
 // Create Deepgram WebSocket connection
 async function createDeepgramConnection(): Promise<WebSocket> {
+  if (!DEEPGRAM_API_KEY) {
+    throw new Error("DEEPGRAM_API_KEY is not configured in environment variables");
+  }
+
   // Deepgram supports passing API key as query parameter for WebSocket
   const url = `wss://api.deepgram.com/v1/listen?encoding=mulaw&sample_rate=8000&channels=1&language=ms&punctuate=true&interim_results=false&token=${DEEPGRAM_API_KEY}`;
   
+  console.log("🔌 Connecting to Deepgram...");
   const deepgramSocket = new WebSocket(url);
 
   return new Promise((resolve, reject) => {
@@ -264,6 +276,13 @@ async function createDeepgramConnection(): Promise<WebSocket> {
       console.error("❌ Deepgram connection error:", error);
       reject(error);
     };
+
+    // Add timeout
+    setTimeout(() => {
+      if (deepgramSocket.readyState !== WebSocket.OPEN) {
+        reject(new Error("Deepgram connection timeout"));
+      }
+    }, 10000);
   });
 }
 
