@@ -249,13 +249,10 @@ async function handleCallStart(socket: WebSocket, data: any) {
 
 // Create Deepgram WebSocket connection
 async function createDeepgramConnection(): Promise<WebSocket> {
-  const url = `wss://api.deepgram.com/v1/listen?encoding=mulaw&sample_rate=8000&channels=1&language=ms&punctuate=true&interim_results=false`;
+  // Deepgram supports passing API key as query parameter for WebSocket
+  const url = `wss://api.deepgram.com/v1/listen?encoding=mulaw&sample_rate=8000&channels=1&language=ms&punctuate=true&interim_results=false&token=${DEEPGRAM_API_KEY}`;
   
-  const deepgramSocket = new WebSocket(url, {
-    headers: {
-      'Authorization': `Token ${DEEPGRAM_API_KEY}`
-    }
-  });
+  const deepgramSocket = new WebSocket(url);
 
   return new Promise((resolve, reject) => {
     deepgramSocket.onopen = () => {
