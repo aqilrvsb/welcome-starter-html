@@ -1,20 +1,14 @@
 /**
- * AI Call Handler - Fixed Azure STT + OpenRouter LLM + ElevenLabs TTS
+ * AI Call Handler - Deepgram STT + OpenRouter LLM + ElevenLabs TTS
  *
  * Architecture:
  * 1. Twilio calls this WebSocket endpoint
- * 2. Audio from caller → Buffer & process in chunks → Deepgram STT (more reliable) OR Azure REST API
+ * 2. Audio from caller → Stream to Deepgram WebSocket → Real-time transcription
  * 3. Text → OpenRouter LLM → AI Response Text
  * 4. AI Response Text → ElevenLabs TTS → Audio
  * 5. Audio → Back to Twilio → Caller hears AI
  *
- * FIXED ISSUES:
- * - Proper WebSocket connection handling
- * - Correct audio format conversion (µ-law to PCM)
- * - Working STT integration
- * - Proper audio streaming back to Twilio
- *
- * Cost per minute: ~$0.12/min
+ * Cost per minute: ~$0.10/min
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
