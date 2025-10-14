@@ -281,8 +281,9 @@ async function handleMediaStream(socket: WebSocket, data: any) {
       // Add raw bytes to buffer
       session.audioBuffer.push(bytes);
 
-      // Process buffer when we have enough audio (500ms worth = 25 chunks)
-      if (session.audioBuffer.length >= 25 && !session.isProcessingAudio) {
+      // Process buffer when we have enough audio (1.5 seconds worth = 75 chunks)
+      // Azure STT needs longer audio segments for reliable transcription
+      if (session.audioBuffer.length >= 75 && !session.isProcessingAudio) {
         session.isProcessingAudio = true;
 
         // Combine all buffered byte arrays
@@ -332,6 +333,9 @@ async function transcribeAudio(session: any, audioBytes: Uint8Array) {
     }
 
     const result = await response.json();
+    
+    // Log the full Azure response for debugging
+    console.log("🔍 Azure STT response:", JSON.stringify(result));
 
     // Check if we got a valid transcription
     if (result.RecognitionStatus === 'Success' && result.DisplayText) {
@@ -358,6 +362,8 @@ async function transcribeAudio(session: any, audioBytes: Uint8Array) {
       }
     } else if (result.RecognitionStatus === 'NoMatch') {
       console.log("🔇 No speech detected in audio chunk");
+    } else if (result.RecognitionStatus === 'Success' && !result.DisplayText) {
+      console.log("⚠️ Azure returned Success but no DisplayText (audio too short or unclear)");
     } else {
       console.log("⚠️ Azure STT result:", result.RecognitionStatus);
     }
