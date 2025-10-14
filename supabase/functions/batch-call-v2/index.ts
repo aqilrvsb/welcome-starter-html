@@ -171,7 +171,7 @@ serve(async (req) => {
 
     // Get AI call handler WebSocket URL (Deno Deploy - PRODUCTION)
     // 🚀 NEW: Using Deno Deploy for unlimited WebSocket time + Singapore edge (15ms latency!)
-    const DENO_DEPLOY_URL = Deno.env.get('DENO_DEPLOY_URL') || 'YOUR_DENO_DEPLOY_URL_HERE';
+    const DENO_DEPLOY_URL = Deno.env.get('DENO_DEPLOY_URL') || 'https://sifucall.deno.dev';
     const AI_CALL_HANDLER_URL = DENO_DEPLOY_URL.replace('https://', 'wss://');
 
     console.log(`🔗 Using WebSocket URL: ${AI_CALL_HANDLER_URL}`);
