@@ -38,14 +38,14 @@ export default function CreditsTopup() {
       // Get user's credits balance
       const { data: userData, error } = await supabase
         .from('users')
-        .select('credits_balance, total_minutes_used')
+        .select('*')
         .eq('id', user.id)
         .single();
 
       if (error) throw error;
 
-      setCreditsBalance(userData?.credits_balance || 0);
-      setTotalMinutesUsed(userData?.total_minutes_used || 0);
+      setCreditsBalance((userData as any)?.credits_balance || 0);
+      setTotalMinutesUsed((userData as any)?.total_minutes_used || 0);
 
     } catch (error: any) {
       console.error('Error loading credits:', error);

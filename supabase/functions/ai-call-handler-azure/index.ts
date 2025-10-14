@@ -564,10 +564,10 @@ async function speakToCall(socket: WebSocket | null, session: any, text: string)
 
       console.log(`🎤 Using ElevenLabs voice: ${voiceId}, speed: ${speed}`);
 
-      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`, {
+      const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
         method: 'POST',
         headers: {
-          'Accept': 'audio/mpeg',
+          'Accept': 'audio/basic',
           'Content-Type': 'application/json',
           'xi-api-key': ELEVENLABS_API_KEY || ''
         },
@@ -580,7 +580,7 @@ async function speakToCall(socket: WebSocket | null, session: any, text: string)
             style: 0.0,
             use_speaker_boost: true
           },
-          output_format: 'ulaw_8000' // µ-law 8kHz for Twilio
+          output_format: 'ulaw_8000'
         })
       });
 
@@ -676,7 +676,7 @@ async function speakToCall(socket: WebSocket | null, session: any, text: string)
 
     // Send audio to Twilio in chunks
     // Twilio Media Stream expects base64-encoded µ-law audio
-    const CHUNK_SIZE = 640; // 640 bytes = ~80ms at 8kHz µ-law
+    const CHUNK_SIZE = 160; // 160 bytes = 20ms at 8kHz µ-law (Twilio recommended)
     let chunksSent = 0;
 
     for (let i = 0; i < audioArray.length; i += CHUNK_SIZE) {
@@ -700,6 +700,11 @@ async function speakToCall(socket: WebSocket | null, session: any, text: string)
 
       twilioSocket.send(JSON.stringify(mediaMessage));
       chunksSent++;
+
+      // Small delay every 50 chunks to prevent flooding
+      if (chunksSent % 50 === 0) {
+        await new Promise(resolve => setTimeout(resolve, 20));
+      }
     }
 
     // Send mark event to indicate audio is complete
@@ -715,7 +720,9 @@ async function speakToCall(socket: WebSocket | null, session: any, text: string)
 
   } catch (error) {
     console.error("❌ Error converting text to speech:", error);
-    console.error("Error details:", error.message);
+    if (error instanceof Error) {
+      console.error("Error details:", error.message);
+    }
   }
 }
 

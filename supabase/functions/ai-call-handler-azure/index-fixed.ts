@@ -523,7 +523,9 @@ async function speakToCall(socket: WebSocket | null, session: any, text: string)
 
   } catch (error) {
     console.error("❌ Error converting text to speech:", error);
-    console.error("Error details:", error.message);
+    if (error instanceof Error) {
+      console.error("Error details:", error.message);
+    }
   }
 }
 
