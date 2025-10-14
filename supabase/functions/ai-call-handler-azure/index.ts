@@ -26,8 +26,7 @@ const corsHeaders = {
 };
 
 // Master API Keys (YOU own these - stored as environment variables)
-const AZURE_SPEECH_KEY = Deno.env.get('AZURE_SPEECH_KEY');
-const AZURE_SPEECH_REGION = Deno.env.get('AZURE_SPEECH_REGION') || 'southeastasia';
+const DEEPGRAM_API_KEY = Deno.env.get('DEEPGRAM_API_KEY');
 const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
 const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
 
@@ -62,7 +61,7 @@ serve(async (req) => {
 
   // WebSocket connection established
   socket.onopen = () => {
-    console.log("🔌 WebSocket connected - AI Call Handler ready (Azure STT Fixed)");
+    console.log("🔌 WebSocket connected - AI Call Handler ready (Deepgram STT)");
   };
 
   socket.onmessage = async (event) => {
@@ -205,6 +204,9 @@ async function handleCallStart(socket: WebSocket, data: any) {
     }
   }
 
+  // Create Deepgram WebSocket connection for this call
+  const deepgramSocket = await createDeepgramConnection();
+
   // Initialize call session
   const session = {
     callSid,
@@ -216,18 +218,17 @@ async function handleCallStart(socket: WebSocket, data: any) {
     voiceId,
     voiceSpeed,
     twilioSocket: socket, // Store Twilio WebSocket for sending audio
+    deepgramSocket, // Store Deepgram WebSocket for STT
     startTime: new Date(),
     transcript: [],
     conversationHistory: [
       { role: 'system', content: systemPrompt }
     ],
-    audioBuffer: [] as Uint8Array[], // Buffer for incoming audio (raw bytes)
-    isProcessingAudio: false, // Flag to prevent concurrent processing
-    silenceCounter: 0, // Count silent frames to detect speech pauses
+    currentUtterance: '', // Buffer for building up the current utterance
 
     // Track costs
     costs: {
-      azure_stt: 0,
+      deepgram_stt: 0,
       llm: 0,
       tts: 0,
       twilio: 0
@@ -236,6 +237,9 @@ async function handleCallStart(socket: WebSocket, data: any) {
 
   activeCalls.set(callSid, session);
 
+  // Set up Deepgram message handler
+  setupDeepgramHandlers(session);
+
   console.log(`💬 System Prompt: ${systemPrompt.substring(0, 100)}...`);
   console.log(`🎤 First Message: ${firstMessage}`);
 
@@ -243,37 +247,74 @@ async function handleCallStart(socket: WebSocket, data: any) {
   await speakToCall(socket, session, firstMessage);
 }
 
-// Helper function to create WAV header for µ-law audio
-function createWavHeader(audioLength: number): Uint8Array {
-  const header = new ArrayBuffer(58); // WAV header size for µ-law
-  const view = new DataView(header);
+// Create Deepgram WebSocket connection
+async function createDeepgramConnection(): Promise<WebSocket> {
+  const url = `wss://api.deepgram.com/v1/listen?encoding=mulaw&sample_rate=8000&channels=1&language=ms&punctuate=true&interim_results=false`;
   
-  // RIFF chunk descriptor
-  view.setUint32(0, 0x52494646, false); // "RIFF"
-  view.setUint32(4, audioLength + 50, true); // File size - 8
-  view.setUint32(8, 0x57415645, false); // "WAVE"
-  
-  // fmt sub-chunk
-  view.setUint32(12, 0x666d7420, false); // "fmt "
-  view.setUint32(16, 18, true); // fmt chunk size (18 for µ-law)
-  view.setUint16(20, 7, true); // Audio format (7 = µ-law)
-  view.setUint16(22, 1, true); // Number of channels (1 = mono)
-  view.setUint32(24, 8000, true); // Sample rate (8000 Hz)
-  view.setUint32(28, 8000, true); // Byte rate (sample rate * channels * bits per sample / 8)
-  view.setUint16(32, 1, true); // Block align (channels * bits per sample / 8)
-  view.setUint16(34, 8, true); // Bits per sample (8 for µ-law)
-  view.setUint16(36, 0, true); // Extension size (0 for basic µ-law)
-  
-  // fact chunk (required for non-PCM formats)
-  view.setUint32(38, 0x66616374, false); // "fact"
-  view.setUint32(42, 4, true); // fact chunk size
-  view.setUint32(46, audioLength, true); // Number of samples
-  
-  // data sub-chunk
-  view.setUint32(50, 0x64617461, false); // "data"
-  view.setUint32(54, audioLength, true); // Data size
-  
-  return new Uint8Array(header);
+  const deepgramSocket = new WebSocket(url, {
+    headers: {
+      'Authorization': `Token ${DEEPGRAM_API_KEY}`
+    }
+  });
+
+  return new Promise((resolve, reject) => {
+    deepgramSocket.onopen = () => {
+      console.log("🎤 Deepgram connection established");
+      resolve(deepgramSocket);
+    };
+
+    deepgramSocket.onerror = (error) => {
+      console.error("❌ Deepgram connection error:", error);
+      reject(error);
+    };
+  });
+}
+
+// Set up Deepgram message handlers
+function setupDeepgramHandlers(session: any) {
+  session.deepgramSocket.onmessage = (event: MessageEvent) => {
+    try {
+      const data = JSON.parse(event.data);
+      
+      if (data.type === 'Results') {
+        const transcript = data.channel?.alternatives?.[0]?.transcript;
+        
+        if (transcript && transcript.trim().length > 0) {
+          const isFinal = data.is_final;
+          
+          if (isFinal) {
+            console.log("🎤 User said:", transcript);
+            
+            // Add to transcript history
+            session.transcript.push({
+              speaker: 'user',
+              text: transcript,
+              timestamp: new Date()
+            });
+
+            // Add to conversation history
+            session.conversationHistory.push({
+              role: 'user',
+              content: transcript
+            });
+
+            // Get AI response
+            getAIResponse(session, transcript);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error processing Deepgram message:", error);
+    }
+  };
+
+  session.deepgramSocket.onerror = (error: Event) => {
+    console.error("❌ Deepgram WebSocket error:", error);
+  };
+
+  session.deepgramSocket.onclose = () => {
+    console.log("🔌 Deepgram connection closed");
+  };
 }
 
 async function handleMediaStream(socket: WebSocket, data: any) {
@@ -298,122 +339,31 @@ async function handleMediaStream(socket: WebSocket, data: any) {
     return;
   }
 
-  // Process incoming audio from Twilio
+  // Process incoming audio from Twilio - stream directly to Deepgram
   if (data.media && data.media.payload) {
     // Payload is base64-encoded µ-law audio (20ms chunks, 160 bytes)
     const audioPayload = data.media.payload;
 
-    // Decode base64 to binary immediately to avoid concatenation issues
     try {
+      // Decode base64 to binary
       const binaryString = atob(audioPayload);
       const bytes = new Uint8Array(binaryString.length);
       for (let i = 0; i < binaryString.length; i++) {
         bytes[i] = binaryString.charCodeAt(i);
       }
       
-      // Add raw bytes to buffer
-      session.audioBuffer.push(bytes);
-
-      // Process buffer when we have enough audio (1.5 seconds worth = 75 chunks)
-      // Azure STT needs longer audio segments for reliable transcription
-      if (session.audioBuffer.length >= 75 && !session.isProcessingAudio) {
-        session.isProcessingAudio = true;
-
-        // Combine all buffered byte arrays
-        const totalLength = session.audioBuffer.reduce((acc: number, arr: Uint8Array) => acc + arr.length, 0);
-        const combinedAudio = new Uint8Array(totalLength);
-        let offset = 0;
-        for (const chunk of session.audioBuffer) {
-          combinedAudio.set(chunk, offset);
-          offset += chunk.length;
-        }
-        
-        session.audioBuffer = []; // Clear buffer
-
-        // Transcribe audio using Azure Speech REST API
-        await transcribeAudio(session, combinedAudio);
-
-        session.isProcessingAudio = false;
+      // Stream audio directly to Deepgram (it handles µ-law natively)
+      if (session.deepgramSocket && session.deepgramSocket.readyState === WebSocket.OPEN) {
+        session.deepgramSocket.send(bytes);
       }
     } catch (error) {
-      console.error("❌ Error decoding audio chunk:", error);
+      console.error("❌ Error processing audio chunk:", error);
     }
   }
 }
 
-async function transcribeAudio(session: any, audioBytes: Uint8Array) {
-  try {
-    // audioBytes is raw µ-law audio data
-    // Azure needs it wrapped in a WAV container with proper headers
-
-    // Create WAV header for µ-law audio
-    const wavHeader = createWavHeader(audioBytes.length);
-    
-    // Combine WAV header + µ-law audio data
-    const wavFile = new Uint8Array(wavHeader.length + audioBytes.length);
-    wavFile.set(wavHeader, 0);
-    wavFile.set(audioBytes, wavHeader.length);
-
-    // Use Azure Speech REST API for transcription
-    const response = await fetch(
-      `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=ms-MY&format=detailed`,
-      {
-        method: 'POST',
-        headers: {
-          'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY || '',
-          'Content-Type': 'audio/wav',
-          'Accept': 'application/json'
-        },
-        body: wavFile as unknown as BodyInit
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ Azure Speech API error: ${response.status} - ${errorText}`);
-      return;
-    }
-
-    const result = await response.json();
-    
-    // Log the full Azure response for debugging
-    console.log("🔍 Azure STT response:", JSON.stringify(result));
-
-    // Check if we got a valid transcription
-    if (result.RecognitionStatus === 'Success' && result.DisplayText) {
-      const transcript = result.DisplayText.trim();
-
-      if (transcript && transcript.length > 2) { // Ignore very short utterances
-        console.log("🎤 User said:", transcript);
-
-        // Add to transcript history
-        session.transcript.push({
-          speaker: 'user',
-          text: transcript,
-          timestamp: new Date()
-        });
-
-        // Add to conversation history
-        session.conversationHistory.push({
-          role: 'user',
-          content: transcript
-        });
-
-        // Get AI response
-        await getAIResponse(session, transcript);
-      }
-    } else if (result.RecognitionStatus === 'NoMatch') {
-      console.log("🔇 No speech detected in audio chunk");
-    } else if (result.RecognitionStatus === 'Success' && !result.DisplayText) {
-      console.log("⚠️ Azure returned Success but no DisplayText (audio too short or unclear)");
-    } else {
-      console.log("⚠️ Azure STT result:", result.RecognitionStatus);
-    }
-
-  } catch (error) {
-    console.error("❌ Error transcribing audio:", error);
-  }
-}
+// Deepgram transcription is handled via WebSocket callbacks in setupDeepgramHandlers()
+// No separate transcribeAudio function needed
 
 async function getAIResponse(session: any, userMessage: string) {
   try {
@@ -597,24 +547,29 @@ async function handleCallEnd(socket: WebSocket, data: any) {
 
   console.log(`📞 Call ended: ${callSid}`);
 
+  // Close Deepgram connection
+  if (session.deepgramSocket && session.deepgramSocket.readyState === WebSocket.OPEN) {
+    session.deepgramSocket.close();
+  }
+
   // Calculate call duration
   const endTime = new Date();
   const durationMs = endTime.getTime() - session.startTime.getTime();
   const durationMinutes = durationMs / 60000;
 
-  // Calculate Azure Speech cost ($1 per hour = $0.0167/min)
-  session.costs.azure_stt = durationMinutes * 0.0167;
+  // Calculate Deepgram cost (~$0.0043/min for Nova-2)
+  session.costs.deepgram_stt = durationMinutes * 0.0043;
 
   // Calculate Twilio cost (estimated)
   session.costs.twilio = durationMinutes * 0.013;
 
-  const totalCost = session.costs.azure_stt + session.costs.llm + session.costs.tts + session.costs.twilio;
+  const totalCost = session.costs.deepgram_stt + session.costs.llm + session.costs.tts + session.costs.twilio;
   const chargedAmount = durationMinutes * 0.20; // What you charge client
   const profit = chargedAmount - totalCost;
 
   console.log(`💰 Call costs:`, {
     duration_minutes: durationMinutes.toFixed(2),
-    azure_stt: session.costs.azure_stt.toFixed(4),
+    deepgram_stt: session.costs.deepgram_stt.toFixed(4),
     llm: session.costs.llm.toFixed(4),
     tts: session.costs.tts.toFixed(4),
     twilio: session.costs.twilio.toFixed(4),
@@ -641,7 +596,7 @@ async function saveCallLog(session: any, durationMinutes: number, chargedAmount:
         campaign_id: session.campaignId,
         duration_seconds: Math.round(durationMinutes * 60),
         duration_minutes: durationMinutes,
-        azure_stt_cost: session.costs.azure_stt,
+        azure_stt_cost: session.costs.deepgram_stt,
         llm_cost: session.costs.llm,
         tts_cost: session.costs.tts,
         twilio_cost: session.costs.twilio,
@@ -653,7 +608,7 @@ async function saveCallLog(session: any, durationMinutes: number, chargedAmount:
         metadata: {
           transcript: session.transcript,
           conversation_history: session.conversationHistory,
-          stt_provider: 'azure'
+          stt_provider: 'deepgram'
         }
       })
       .select()
