@@ -25,7 +25,7 @@ const corsHeaders = {
 
 // Master API Keys (YOU own these - stored as environment variables)
 const AZURE_SPEECH_KEY = Deno.env.get('AZURE_SPEECH_KEY');
-const AZURE_SPEECH_REGION = Deno.env.get('AZURE_SPEECH_REGION') || 'southeastasia';
+const AZURE_SPEECH_REGION = Deno.env.get('AZURE_SPEECH_REGION') || 'eastus'; // Changed from southeastasia
 const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
 const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
 
