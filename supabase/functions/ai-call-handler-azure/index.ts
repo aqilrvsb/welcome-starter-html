@@ -25,7 +25,7 @@ const corsHeaders = {
 
 // Master API Keys (YOU own these - stored as environment variables)
 const AZURE_SPEECH_KEY = Deno.env.get('AZURE_SPEECH_KEY');
-const AZURE_SPEECH_REGION = Deno.env.get('AZURE_SPEECH_REGION') || 'eastus'; // Changed from southeastasia
+const AZURE_SPEECH_REGION = Deno.env.get('AZURE_SPEECH_REGION') || 'southeastasia'; // Restored for Malaysia
 const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
 const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
 
@@ -290,65 +290,14 @@ async function initializeAzureStt(session: any) {
     console.log(`🔑 Key starts with: ${AZURE_SPEECH_KEY?.substring(0, 8)}...`);
     console.log(`🔑 Key ends with: ...${AZURE_SPEECH_KEY?.substring(Math.max(0, AZURE_SPEECH_KEY.length - 4))}`);
 
-    // Fetch Azure Speech token (supports non-32 length keys)
-    const tokenEndpoint = `https://${AZURE_SPEECH_REGION}.sts.speech.microsoft.com/issueToken`;
-
-    // Fetch Azure Speech token with retry logic
-    let authToken = '';
-    let retries = 3;
-    
-    while (retries > 0) {
-      try {
-        console.log(`🔄 Fetching Azure auth token (attempt ${4 - retries}/3)...`);
-        const tokenResponse = await fetch(tokenEndpoint, {
-          method: 'POST',
-          headers: {
-            'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
-            'Content-Type': 'application/x-www-form-urlencoded'
-          }
-        });
-
-        if (!tokenResponse.ok) {
-          const errorText = await tokenResponse.text();
-          console.error(`❌ Failed to fetch Azure auth token: ${tokenResponse.status} - ${errorText}`);
-          retries--;
-          if (retries > 0) {
-            console.log(`⏳ Retrying in 1 second...`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            continue;
-          }
-          return;
-        }
-
-        authToken = (await tokenResponse.text()).trim();
-
-        if (!authToken) {
-          console.error('❌ Received empty Azure auth token from Azure STS');
-          return;
-        }
-
-        console.log('✅ Azure auth token fetched successfully');
-        break; // Success, exit retry loop
-        
-      } catch (error) {
-        console.error(`❌ Error fetching Azure auth token (attempt ${4 - retries}/3):`, error);
-        retries--;
-        if (retries > 0) {
-          console.log(`⏳ Retrying in 1 second...`);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        } else {
-          console.error('❌ All retry attempts failed for Azure token');
-          return;
-        }
-      }
-    }
-
-    // Azure Speech WebSocket URL - include token and connection id in query
+    // Generate connection ID
     const connectionId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const authQuery = encodeURIComponent(`Bearer ${authToken}`);
-    const azureWsUrl = `wss://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=ms-MY&format=detailed&Authorization=${authQuery}&X-ConnectionId=${connectionId}`;
+    
+    // Use subscription key directly in WebSocket URL (bypasses token service)
+    // This avoids DNS issues with Azure token endpoint from Supabase
+    console.log(`🌐 Using direct subscription key (bypassing token service for reliability)...`);
+    const azureWsUrl = `wss://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=ms-MY&format=detailed&Ocp-Apim-Subscription-Key=${encodeURIComponent(AZURE_SPEECH_KEY)}&X-ConnectionId=${connectionId}`;
 
-    session.azureAuthToken = authToken;
     session.azureConnectionId = connectionId;
 
     console.log(`🔁 Using connectionId: ${connectionId}`);
@@ -358,8 +307,7 @@ async function initializeAzureStt(session: any) {
     azureSocket.onopen = () => {
       console.log("✅ Azure Speech WebSocket connected successfully!");
 
-      // Send configuration message with authentication header
-      // Azure Speech WebSocket protocol requires auth + config after connection
+      // Send configuration message
       const configMessage = {
         context: {
           system: {
@@ -381,12 +329,12 @@ async function initializeAzureStt(session: any) {
       const timestamp = new Date().toISOString();
       const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      // Include auth header in the message
-      const configPayload = `Path: speech.config\r\nAuthorization: Bearer ${session.azureAuthToken}\r\nContent-Type: application/json; charset=utf-8\r\nX-RequestId: ${requestId}\r\nX-ConnectionId: ${session.azureConnectionId}\r\nX-Timestamp: ${timestamp}\r\n\r\n${JSON.stringify(configMessage)}`;
+      // Config message with subscription key in header
+      const configPayload = `Path: speech.config\r\nOcp-Apim-Subscription-Key: ${AZURE_SPEECH_KEY}\r\nContent-Type: application/json; charset=utf-8\r\nX-RequestId: ${requestId}\r\nX-ConnectionId: ${session.azureConnectionId}\r\nX-Timestamp: ${timestamp}\r\n\r\n${JSON.stringify(configMessage)}`;
 
       try {
         azureSocket.send(configPayload);
-        console.log("✅ Sent Azure Speech configuration with authentication");
+        console.log("✅ Sent Azure Speech configuration");
       } catch (error) {
         console.error("❌ Failed to send Azure config:", error);
       }
@@ -520,7 +468,7 @@ async function handleMediaStream(socket: WebSocket, data: any) {
       const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const timestamp = new Date().toISOString();
 
-      const audioHeader = `Path: audio\r\nAuthorization: Bearer ${session.azureAuthToken}\r\nContent-Type: audio/x-mulaw; codec=mulaw; samplerate=8000\r\nX-RequestId: ${requestId}\r\nX-ConnectionId: ${session.azureConnectionId}\r\nX-Timestamp: ${timestamp}\r\n\r\n`;
+      const audioHeader = `Path: audio\r\nOcp-Apim-Subscription-Key: ${AZURE_SPEECH_KEY}\r\nContent-Type: audio/x-mulaw; codec=mulaw; samplerate=8000\r\nX-RequestId: ${requestId}\r\nX-ConnectionId: ${session.azureConnectionId}\r\nX-Timestamp: ${timestamp}\r\n\r\n`;
 
       // Combine header (text) and audio (binary)
       const headerBytes = new TextEncoder().encode(audioHeader);
