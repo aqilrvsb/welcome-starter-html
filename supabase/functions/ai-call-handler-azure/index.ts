@@ -108,19 +108,24 @@ serve(async (req) => {
 const activeCalls = new Map();
 
 async function handleCallStart(socket: WebSocket, data: any) {
-  const callSid = data.start.callSid;
-  const streamSid = data.start.streamSid;
+  try {
+    const callSid = data.start.callSid;
+    const streamSid = data.start.streamSid;
 
-  console.log(`📞 Call started: ${callSid}`);
-  console.log(`🌊 Stream started: ${streamSid}`);
+    console.log(`📞 Call started: ${callSid}`);
+    console.log(`🌊 Stream started: ${streamSid}`);
 
-  // Get call metadata from Twilio custom parameters
-  const customParameters = data.start.customParameters || {};
-  const userId = customParameters.user_id;
-  const campaignId = customParameters.campaign_id;
-  const promptId = customParameters.prompt_id;
-  const phoneNumber = customParameters.phone_number;
-  const customerName = customParameters.customer_name;
+    // Get call metadata from Twilio custom parameters
+    const customParameters = data.start.customParameters || {};
+    const userId = customParameters.user_id;
+    const campaignId = customParameters.campaign_id;
+    const promptId = customParameters.prompt_id;
+    const phoneNumber = customParameters.phone_number;
+    const customerName = customParameters.customer_name;
+
+    console.log(`👤 User ID: ${userId}`);
+    console.log(`📋 Campaign ID: ${campaignId}`);
+    console.log(`📝 Prompt ID: ${promptId}`);
 
   let systemPrompt = "You are a helpful AI assistant.";
   let firstMessage = "Hello! How can I help you today?";
@@ -249,7 +254,18 @@ async function handleCallStart(socket: WebSocket, data: any) {
   console.log(`🎤 First Message: ${firstMessage}`);
 
   // Send first message to caller
+  console.log(`🎤 About to send first message to caller...`);
   await speakToCall(socket, session, firstMessage);
+  console.log(`✅ handleCallStart completed successfully`);
+}
+catch (error) {
+  console.error("❌ CRITICAL ERROR in handleCallStart:", error);
+  if (error instanceof Error) {
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+  }
+  throw error;
+}
 }
 
 async function initializeAzureStt(session: any) {
