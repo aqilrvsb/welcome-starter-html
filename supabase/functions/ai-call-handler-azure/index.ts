@@ -1,5 +1,6 @@
 /**
  * AI Call Handler - Azure STT WebSocket + OpenRouter LLM + ElevenLabs TTS
+ * Version: 2.0 (Fixed session tracking)
  *
  * Architecture:
  * 1. Twilio calls this WebSocket endpoint
