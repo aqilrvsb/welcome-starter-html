@@ -464,17 +464,28 @@ async function handleMediaStream(socket: WebSocket, data: any) {
         audioBytes[i] = binaryString.charCodeAt(i);
       }
 
-      // Azure Speech WebSocket protocol requires audio to be sent with specific headers
+      // Azure Speech WebSocket protocol requires a specific binary format:
+      // [2 bytes: header length (little-endian)] + [header text] + [audio data]
       const requestId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       const timestamp = new Date().toISOString();
 
-      const audioHeader = `Path: audio\r\nOcp-Apim-Subscription-Key: ${AZURE_SPEECH_KEY}\r\nContent-Type: audio/x-mulaw; codec=mulaw; samplerate=8000\r\nX-RequestId: ${requestId}\r\nX-ConnectionId: ${session.azureConnectionId}\r\nX-Timestamp: ${timestamp}\r\n\r\n`;
+      const audioHeader = `Path: audio\r\nContent-Type: audio/x-mulaw; codec=mulaw; samplerate=8000\r\nX-RequestId: ${requestId}\r\nX-Timestamp: ${timestamp}\r\n\r\n`;
 
-      // Combine header (text) and audio (binary)
       const headerBytes = new TextEncoder().encode(audioHeader);
-      const combined = new Uint8Array(headerBytes.length + audioBytes.length);
-      combined.set(headerBytes, 0);
-      combined.set(audioBytes, headerBytes.length);
+      const headerLength = headerBytes.length;
+
+      // Create buffer: 2-byte header length + header + audio
+      const combined = new Uint8Array(2 + headerLength + audioBytes.length);
+      
+      // Write header length as little-endian 16-bit integer
+      combined[0] = headerLength & 0xFF;
+      combined[1] = (headerLength >> 8) & 0xFF;
+      
+      // Write header text
+      combined.set(headerBytes, 2);
+      
+      // Write audio data
+      combined.set(audioBytes, 2 + headerLength);
 
       // Send to Azure WebSocket
       session.azureSttSocket.send(combined);
