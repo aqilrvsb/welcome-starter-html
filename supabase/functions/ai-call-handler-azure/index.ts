@@ -476,14 +476,16 @@ async function speakToCall(socket, session, text) {
     console.log(`✅ Twilio socket is OPEN, sending audio...`);
     // Send audio to Twilio in chunks
     // Twilio Media Stream expects base64-encoded µ-law audio
-    const CHUNK_SIZE = 640; // 640 bytes = ~80ms at 8kHz µ-law
+    const CHUNK_SIZE = 160; // 160 bytes = 20ms at 8kHz µ-law (Twilio standard)
     let chunksSent = 0;
     for(let i = 0; i < audioArray.length; i += CHUNK_SIZE){
       const chunk = audioArray.slice(i, Math.min(i + CHUNK_SIZE, audioArray.length));
-      // Convert chunk to base64
+
+      // ✅ CRITICAL FIX: Proper bytes to base64 conversion
+      // Use the same method that works for decoding - ensures no data corruption
       let binary = '';
       for(let j = 0; j < chunk.length; j++){
-        binary += String.fromCharCode(chunk[j]);
+        binary += String.fromCharCode(chunk[j] & 0xFF); // Ensure byte range 0-255
       }
       const chunkBase64 = btoa(binary);
       // Send to Twilio Media Stream
