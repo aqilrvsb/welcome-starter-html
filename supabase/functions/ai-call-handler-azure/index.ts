@@ -293,34 +293,54 @@ async function initializeAzureStt(session: any) {
     // Fetch Azure Speech token (supports non-32 length keys)
     const tokenEndpoint = `https://${AZURE_SPEECH_REGION}.sts.speech.microsoft.com/issueToken`;
 
+    // Fetch Azure Speech token with retry logic
     let authToken = '';
+    let retries = 3;
+    
+    while (retries > 0) {
+      try {
+        console.log(`🔄 Fetching Azure auth token (attempt ${4 - retries}/3)...`);
+        const tokenResponse = await fetch(tokenEndpoint, {
+          method: 'POST',
+          headers: {
+            'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          }
+        });
 
-    try {
-      const tokenResponse = await fetch(tokenEndpoint, {
-        method: 'POST',
-        headers: {
-          'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY,
-          'Content-Type': 'application/x-www-form-urlencoded'
+        if (!tokenResponse.ok) {
+          const errorText = await tokenResponse.text();
+          console.error(`❌ Failed to fetch Azure auth token: ${tokenResponse.status} - ${errorText}`);
+          retries--;
+          if (retries > 0) {
+            console.log(`⏳ Retrying in 1 second...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
+          return;
         }
-      });
 
-      if (!tokenResponse.ok) {
-        const errorText = await tokenResponse.text();
-        console.error(`❌ Failed to fetch Azure auth token: ${tokenResponse.status} - ${errorText}`);
-        return;
+        authToken = (await tokenResponse.text()).trim();
+
+        if (!authToken) {
+          console.error('❌ Received empty Azure auth token from Azure STS');
+          return;
+        }
+
+        console.log('✅ Azure auth token fetched successfully');
+        break; // Success, exit retry loop
+        
+      } catch (error) {
+        console.error(`❌ Error fetching Azure auth token (attempt ${4 - retries}/3):`, error);
+        retries--;
+        if (retries > 0) {
+          console.log(`⏳ Retrying in 1 second...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } else {
+          console.error('❌ All retry attempts failed for Azure token');
+          return;
+        }
       }
-
-      authToken = (await tokenResponse.text()).trim();
-
-      if (!authToken) {
-        console.error('❌ Received empty Azure auth token from Azure STS');
-        return;
-      }
-
-      console.log('✅ Azure auth token fetched successfully');
-    } catch (error) {
-      console.error('❌ Error fetching Azure auth token:', error);
-      return;
     }
 
     // Azure Speech WebSocket URL - include token and connection id in query
@@ -467,16 +487,13 @@ async function handleMediaStream(socket: WebSocket, data: any) {
   }
 
   if (!session) {
-    console.warn(`⚠️ No session found for streamSid: ${streamSid}`);
-    console.log(`📊 Active sessions: ${activeCalls.size}`);
-    for (const [sid, sess] of activeCalls.entries()) {
-      console.log(`  - CallSid: ${sid}, StreamSid: ${sess.streamSid}`);
-    }
+    // Session not found - this happens when media arrives before 'start' event
+    // This is normal and will resolve once the start event arrives
     return;
   }
 
   if (!session.azureSttSocket) {
-    console.warn("⚠️ Azure STT socket not initialized");
+    console.warn("⚠️ Azure STT socket not initialized yet, buffering audio...");
     return;
   }
 
