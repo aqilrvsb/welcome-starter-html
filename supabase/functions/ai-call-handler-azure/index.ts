@@ -1410,6 +1410,58 @@ async function handleCallEnd(socket, data) {
 }
 async function saveCallLog(session, durationMinutes, chargedAmount, totalCost, profit) {
   try {
+    // 📝 Format transcript from conversation history
+    const formattedTranscript = session.transcript
+      .map((t: any) => `${t.speaker === 'user' ? 'Customer' : 'AI'}: ${t.text}`)
+      .join('\n\n');
+
+    // 📊 Generate AI summary from conversation
+    const generateSummary = () => {
+      const userMessages = session.transcript.filter((t: any) => t.speaker === 'user');
+      const aiMessages = session.transcript.filter((t: any) => t.speaker === 'assistant');
+
+      return `Call Summary:
+- Total exchanges: ${session.transcript.length / 2} turns
+- Customer spoke: ${userMessages.length} times
+- AI responded: ${aiMessages.length} times
+- Duration: ${durationMinutes.toFixed(2)} minutes
+- Pipeline: Azure STT + OpenRouter + ElevenLabs`;
+    };
+
+    // 🔧 UPDATE call_logs table with final status, transcript, and metadata
+    const { error: updateError } = await supabaseAdmin
+      .from('call_logs')
+      .update({
+        status: 'ended', // ✅ Update status from 'queued' to 'ended'
+        duration: Math.round(durationMinutes * 60), // ✅ Add duration in seconds
+        metadata: {
+          transcript: formattedTranscript, // ✅ Add formatted transcript
+          summary: generateSummary(), // ✅ Add AI summary
+          conversation_history: session.conversationHistory,
+          stt_provider: 'azure',
+          llm_provider: 'openrouter',
+          tts_provider: 'elevenlabs',
+          // Cost breakdown
+          azure_stt_cost: session.costs.azure_stt,
+          llm_cost: session.costs.llm,
+          tts_cost: session.costs.tts,
+          twilio_cost: session.costs.twilio,
+          total_cost: totalCost,
+          vapi_cost: 0, // Not using VAPI
+          // Note: No recording URL for custom pipeline (requires separate recording setup)
+          recording_url: null,
+          pipeline: 'azure_stt_openrouter_elevenlabs'
+        }
+      })
+      .eq('call_id', session.callSid)
+      .eq('user_id', session.userId);
+
+    if (updateError) {
+      console.error("❌ Error updating call_logs:", updateError);
+    } else {
+      console.log("✅ Updated call_logs with transcript and final status");
+    }
+
     // Create call cost record
     const { data: callCost, error: costError } = await supabaseAdmin.from('call_costs').insert({
       call_id: session.callSid,
