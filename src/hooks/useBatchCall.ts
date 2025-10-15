@@ -185,23 +185,33 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
         customer_name: contactsMap.get(phone) || null
       }));
 
-      // Call the batch-call-v2 edge function (uses credits-based billing)
-      const { data: response, error } = await supabase.functions.invoke('batch-call-v2', {
-        body: {
+      // 🚀 NEW: Call Deno Deploy directly (faster, no 25-sec timeout!)
+      // Direct HTTP POST to Deno Deploy batch-call endpoint
+      const DENO_DEPLOY_URL = 'https://sifucall.deno.dev/batch-call';
+
+      const response = await fetch(DENO_DEPLOY_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           userId: user.id,
           campaignName: data.campaignName,
           promptId: data.promptId,
           phoneNumbers: validNumbers,
           phoneNumbersWithNames: phoneNumbersWithNames,
-          concurrentLimit: 10, // Fixed default value
           retryEnabled: data.retryEnabled,
           retryIntervalMinutes: data.retryIntervalMinutes,
           maxRetryAttempts: data.maxRetryAttempts,
-        }
+        })
       });
 
-      if (error) throw error;
-      return response;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Batch call failed');
+      }
+
+      return await response.json();
     },
     onSuccess: (response) => {
       toast.success(`🎉 Kempen batch call berjaya dimulakan! 
