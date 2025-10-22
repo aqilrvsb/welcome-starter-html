@@ -23,7 +23,9 @@
       "Read(//c/Users/ACER/Videos/aicall-master (1)/welcome-starter-html/**)",
       "Read(//c/Users/aqilz/Documents/call-center-ai-main/**)",
       "Bash(dir)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(sshpass:*)",
+      "Bash(ssh:*)"
     ],
     "deny": [],
     "ask": []

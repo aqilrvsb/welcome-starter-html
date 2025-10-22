@@ -593,22 +593,27 @@ async function originateCallViaESL(params: {
       .map(([key, value]) => `${key}='${value}'`)
       .join(',');
 
-    // Originate command
-    // Gateway name includes profile prefix: external::uuid
-    // Format: originate {variables}sofia/gateway/profile::name/number &application
-    // Use &park to answer and park the call, then use mod_audio_fork
-    const originateCmd = `api originate {${varString}}sofia/gateway/external::1360d030-6e0c-4617-83e0-8d80969010cf/${cleanNumber} &park()`;
+    // Originate command with inline audio_fork
+    // Format: api originate {variables}sofia/gateway/name/number 'audio_fork(start wss://url both),park' inline
+    // This will answer, start audio_fork, then park the call
+    const aiHandlerUrl = variables.ai_handler_url;
+    const originateCmd = `api originate {${varString},origination_caller_id_number=${cleanNumber}}sofia/gateway/external::1360d030-6e0c-4617-83e0-8d80969010cf/${cleanNumber} 'audio_fork start ${aiHandlerUrl} both,park' inline`;
 
     console.log(`📞 Originating: ${originateCmd}`);
 
     await sendESLCommand(conn, originateCmd);
     const response = await readESLResponse(conn);
 
-    // Parse response
+    console.log(`📋 Response: ${response}`);
+
+    // api originate returns +OK UUID on success
+    // Extract UUID - can be in format "+OK <uuid>" or just the uuid
+    let callId = '';
+
     if (response.includes('+OK')) {
-      // Extract UUID from response
-      const uuidMatch = response.match(/\+OK\s+([a-f0-9-]+)/);
-      const callId = uuidMatch ? uuidMatch[1] : `call_${Date.now()}`;
+      // Try to extract UUID from response
+      const uuidMatch = response.match(/\+OK\s+([a-f0-9-]+)/i) || response.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+      callId = uuidMatch ? uuidMatch[1] : `call_${Date.now()}`;
 
       console.log(`✅ Call originated successfully: ${callId}`);
 
@@ -618,13 +623,24 @@ async function originateCallViaESL(params: {
       };
     } else if (response.includes('-ERR')) {
       const errorMatch = response.match(/-ERR\s+(.+)/);
-      const errorMsg = errorMatch ? errorMatch[1] : 'Unknown error';
+      const errorMsg = errorMatch ? errorMatch[1].trim() : 'Unknown error';
       console.error(`❌ Call origination failed: ${errorMsg}`);
       return {
         success: false,
         error: errorMsg,
       };
     } else {
+      // Check if there's a UUID even without +OK
+      const uuidMatch = response.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+      if (uuidMatch) {
+        callId = uuidMatch[1];
+        console.log(`✅ Call originated (UUID found): ${callId}`);
+        return {
+          success: true,
+          callId: callId,
+        };
+      }
+
       console.error(`❌ Unexpected response: ${response}`);
       return {
         success: false,
