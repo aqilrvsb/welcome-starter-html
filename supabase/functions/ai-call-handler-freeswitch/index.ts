@@ -453,34 +453,15 @@ async function getAIResponse(session: any, userMessage: string) {
   }
 }
 
-// G.711 µ-law encoding (SAME AS TWILIO!)
-function pcmToMulaw(pcm: number): number {
-  const MULAW_MAX = 0x1FFF;
-  const MULAW_BIAS = 33;
-
-  const sign = (pcm < 0) ? 0x80 : 0x00;
-  let magnitude = Math.abs(pcm);
-
-  if (magnitude > MULAW_MAX) magnitude = MULAW_MAX;
-  magnitude += MULAW_BIAS;
-
-  let exponent = 7;
-  for (let mask = 0x4000; (magnitude & mask) === 0 && exponent > 0; exponent--, mask >>= 1);
-
-  const mantissa = (magnitude >> (exponent + 3)) & 0x0F;
-
-  return (~(sign | (exponent << 4) | mantissa)) & 0xFF;
-}
-
 async function speakToCall(session: any, text: string) {
   try {
     session.isSpeaking = true;
 
     console.log(`🔊 Speaking: "${text}"`);
 
-    // Get PCM from ElevenLabs (SAME AS TWILIO!)
+    // Get PCM from ElevenLabs at 16kHz (will downsample to 8kHz)
     const response = await fetch(
-      `https://api.elevenlabs.io/v1/text-to-speech/${session.voiceId}?output_format=pcm_24000`,
+      `https://api.elevenlabs.io/v1/text-to-speech/${session.voiceId}?output_format=pcm_16000`,
       {
         method: 'POST',
         headers: {
@@ -501,21 +482,40 @@ async function speakToCall(session: any, text: string) {
     );
 
     const pcmBuffer = await response.arrayBuffer();
-    const pcm24k = new Int16Array(pcmBuffer);
+    const pcm16k = new Int16Array(pcmBuffer);
 
-    // Downsample to 8kHz + convert to µ-law (SAME AS TWILIO!)
-    const audioArray = new Uint8Array(Math.floor(pcm24k.length / 3));
-    for (let i = 0; i < audioArray.length; i++) {
-      audioArray[i] = pcmToMulaw(pcm24k[i * 3]);
+    // Downsample 16kHz → 8kHz (take every other sample)
+    const pcm8k = new Int16Array(Math.floor(pcm16k.length / 2));
+    for (let i = 0; i < pcm8k.length; i++) {
+      pcm8k[i] = pcm16k[i * 2];
     }
 
-    console.log(`📦 Sending ${audioArray.length} bytes of audio...`);
+    // Convert to Uint8Array for base64 encoding
+    const pcmBytes = new Uint8Array(pcm8k.buffer);
 
-    // Send audio via WebSocket (SAME AS TWILIO!)
-    // mod_audio_stream expects raw µ-law bytes
+    // Base64 encode in chunks to avoid stack overflow
+    let base64Audio = '';
+    const chunkSize = 32768;
+    for (let i = 0; i < pcmBytes.length; i += chunkSize) {
+      const chunk = pcmBytes.subarray(i, Math.min(i + chunkSize, pcmBytes.length));
+      base64Audio += btoa(String.fromCharCode.apply(null, Array.from(chunk)));
+    }
+
+    console.log(`📦 Sending ${pcmBytes.length} bytes of L16 PCM audio (${base64Audio.length} base64 chars)...`);
+
+    // Send audio in mod_audio_stream JSON format
+    const audioMessage = JSON.stringify({
+      type: "streamAudio",
+      data: {
+        audioDataType: "raw",
+        sampleRate: 8000,
+        audioData: base64Audio
+      }
+    });
+
     if (session.socket.readyState === WebSocket.OPEN) {
-      session.socket.send(audioArray);
-      console.log("✅ Audio sent to FreeSWITCH!");
+      session.socket.send(audioMessage);
+      console.log("✅ Audio sent to FreeSWITCH in JSON format!");
     }
 
     session.isSpeaking = false;
