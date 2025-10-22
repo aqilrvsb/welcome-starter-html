@@ -329,15 +329,21 @@ async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
     }
   }
 
-  if (!session || session.isProcessingAudio || session.isSpeaking) return;
+  if (!session) return;
+
+  // CRITICAL: Don't process audio while AI is speaking to avoid interruptions
+  if (session.isSpeaking || session.isProcessingAudio) {
+    // Discard audio during AI speech for smooth transitions
+    return;
+  }
 
   // Convert to Uint8Array (mod_audio_stream sends L16/PCM)
   const pcmData = new Uint8Array(audioData);
   session.audioBuffer.push(pcmData);
 
-  // Process every ~1 second
+  // Process every ~2 seconds (larger chunks = better transcription accuracy)
   const totalSize = session.audioBuffer.reduce((sum: number, arr: Uint8Array) => sum + arr.length, 0);
-  if (totalSize >= 16000) {
+  if (totalSize >= 32000) {  // Increased from 16000 for better accuracy
     session.isProcessingAudio = true;
 
     const combined = new Uint8Array(totalSize);
@@ -377,7 +383,8 @@ function createWavHeader(audioLength: number) {
 
 async function transcribeAudio(session: any, audioBytes: Uint8Array) {
   try {
-    if (audioBytes.length < 1200) return;
+    // Require minimum 3200 bytes (~0.2 seconds) to avoid garbage transcription
+    if (audioBytes.length < 3200) return;
 
     console.log(`🎙️ Transcribing ${audioBytes.length} bytes...`);
 
@@ -387,32 +394,45 @@ async function transcribeAudio(session: any, audioBytes: Uint8Array) {
     wavFile.set(wavHeader, 0);
     wavFile.set(audioBytes, wavHeader.length);
 
-    // Azure STT
+    // Azure STT with enhanced parameters for better accuracy
     const response = await fetch(
-      `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=ms-MY`,
+      `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?` +
+      `language=ms-MY&` +
+      `profanity=raw&` +  // Don't filter profanity (preserve natural speech)
+      `format=detailed`,   // Get confidence scores
       {
         method: 'POST',
         headers: {
           'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY || '',
-          'Content-Type': 'audio/wav',
+          'Content-Type': 'audio/wav; codec=audio/pcm; samplerate=8000',
         },
         body: wavFile,
       }
     );
 
-    if (!response.ok) return;
+    if (!response.ok) {
+      console.log(`❌ Azure STT error: ${response.status} ${response.statusText}`);
+      return;
+    }
 
     const result = await response.json();
 
     if (result.RecognitionStatus === 'Success' && result.DisplayText) {
       const transcript = result.DisplayText.trim();
-      if (transcript.length > 0) {
-        console.log(`🗣️  Customer: "${transcript}"`);
+
+      // Get confidence score if available
+      const confidence = result.NBest?.[0]?.Confidence || 0;
+
+      // Only accept transcripts with reasonable confidence (> 0.3) or length (> 2 chars)
+      if (transcript.length > 1 && (confidence > 0.3 || transcript.length > 2)) {
+        console.log(`🗣️  Customer: "${transcript}" (confidence: ${confidence.toFixed(2)})`);
 
         session.transcript.push({ speaker: 'user', text: transcript, timestamp: new Date() });
         session.conversationHistory.push({ role: 'user', content: transcript });
 
         await getAIResponse(session, transcript);
+      } else {
+        console.log(`⚠️  Low confidence transcription ignored: "${transcript}" (${confidence.toFixed(2)})`);
       }
     }
   } catch (error) {
@@ -518,8 +538,13 @@ async function speakToCall(session: any, text: string) {
       session.socket.send(audioMessage);
       console.log("✅ Audio sent to FreeSWITCH in JSON format!");
 
+      // Calculate audio duration (bytes / sample_rate / bytes_per_sample)
+      // 8000 samples/sec, 2 bytes per sample (16-bit) = 16000 bytes/sec
+      const audioDurationMs = (pcmBytes.length / 16000) * 1000;
+      console.log(`⏱️  Audio duration: ${audioDurationMs.toFixed(0)}ms`);
+
       // mod_audio_stream saves the file but doesn't auto-play it
-      // We need to play it manually using uuid_displace
+      // We need to play it manually using uuid_broadcast
       // Give it a moment to save the file, then play it
       setTimeout(async () => {
         try {
@@ -548,13 +573,22 @@ async function speakToCall(session: any, text: string) {
           console.log(`🎵 Broadcast response: ${broadcastResponse}`);
 
           conn.close();
+
+          // Wait for audio to finish playing before releasing the speaking flag
+          // Add 500ms buffer for smooth transition
+          setTimeout(() => {
+            session.isSpeaking = false;
+            console.log("✅ Audio playback complete, ready for customer input");
+          }, audioDurationMs + 500);
+
         } catch (error) {
           console.error("❌ Error playing audio:", error);
+          session.isSpeaking = false; // Release flag on error
         }
       }, 100); // Wait 100ms for file to be saved
+    } else {
+      session.isSpeaking = false;
     }
-
-    session.isSpeaking = false;
   } catch (error) {
     console.error("❌ TTS error:", error);
     session.isSpeaking = false;
