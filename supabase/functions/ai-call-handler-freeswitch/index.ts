@@ -537,13 +537,14 @@ async function speakToCall(session: any, text: string) {
           session.audioFileCounter = fileNum + 1;
           const audioFile = `/tmp/${session.callId}_${fileNum}.tmp.r8`;
 
-          // Play the audio file to the call
-          const displaceCmd = `api uuid_displace ${session.callId} start ${audioFile} 0 w`;
-          console.log(`🎵 Playing audio: ${displaceCmd}`);
+          // Play the audio file to the call using uuid_broadcast
+          // Format: uuid_broadcast <uuid> <path> [aleg|bleg|both]
+          const broadcastCmd = `api uuid_broadcast ${session.callId} ${audioFile} aleg`;
+          console.log(`🎵 Playing audio: ${broadcastCmd}`);
 
-          await sendESLCommand(conn, displaceCmd);
-          const displaceResponse = await readESLResponse(conn);
-          console.log(`🎵 Displace response: ${displaceResponse}`);
+          await sendESLCommand(conn, broadcastCmd);
+          const broadcastResponse = await readESLResponse(conn);
+          console.log(`🎵 Broadcast response: ${broadcastResponse}`);
 
           conn.close();
         } catch (error) {
