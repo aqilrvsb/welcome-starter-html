@@ -595,8 +595,9 @@ async function originateCallViaESL(params: {
 
     // Originate command
     // Gateway name includes profile prefix: external::uuid
-    // Format: originate {variables}sofia/gateway/profile::name/number extension context
-    const originateCmd = `api originate {${varString}}sofia/gateway/external::1360d030-6e0c-4617-83e0-8d80969010cf/${cleanNumber} ${extension} XML public`;
+    // Format: originate {variables}sofia/gateway/profile::name/number &application
+    // Use &park to answer and park the call, then use mod_audio_fork
+    const originateCmd = `api originate {${varString}}sofia/gateway/external::1360d030-6e0c-4617-83e0-8d80969010cf/${cleanNumber} &park()`;
 
     console.log(`📞 Originating: ${originateCmd}`);
 
