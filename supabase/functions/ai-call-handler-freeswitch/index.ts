@@ -247,9 +247,58 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
 
   console.log(`📋 Audio stream Response: ${streamResponse}`);
 
+  // Start monitoring for CHANNEL_ANSWER event in background
+  // This will trigger the first message when customer picks up
+  monitorCallAnswerEvent(callId, websocketUrl);
+
   conn.close();
 
   return callId;
+}
+
+/**
+ * Monitor for CHANNEL_ANSWER event and notify WebSocket handler
+ */
+async function monitorCallAnswerEvent(callId: string, websocketUrl: string) {
+  try {
+    const conn = await Deno.connect({
+      hostname: FREESWITCH_HOST,
+      port: FREESWITCH_ESL_PORT,
+    });
+
+    await readESLResponse(conn);
+    await sendESLCommand(conn, `auth ${FREESWITCH_ESL_PASSWORD}`);
+    await readESLResponse(conn);
+
+    // Subscribe to CHANNEL_ANSWER events for this specific call
+    await sendESLCommand(conn, `filter Unique-ID ${callId}`);
+    await readESLResponse(conn);
+
+    await sendESLCommand(conn, `event CHANNEL_ANSWER`);
+    await readESLResponse(conn);
+
+    console.log(`👂 Monitoring call ${callId} for ANSWER event...`);
+
+    // Wait for CHANNEL_ANSWER event (non-blocking)
+    const answerEvent = await readESLResponse(conn);
+
+    if (answerEvent.includes('CHANNEL_ANSWER')) {
+      console.log(`✅ Call ${callId} ANSWERED by customer!`);
+
+      // Find the session and trigger greeting
+      const session = activeCalls.get(callId);
+      if (session && !session.hasGreeted) {
+        session.isCallAnswered = true;
+        console.log(`📞 Triggering greeting for ${callId}...`);
+        await speakToCall(session, session.firstMessage);
+        session.hasGreeted = true;
+      }
+    }
+
+    conn.close();
+  } catch (error) {
+    console.error(`❌ Error monitoring call ${callId}:`, error);
+  }
 }
 
 async function handleCallStart(socket: WebSocket, metadata: any) {
@@ -318,8 +367,8 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
   activeCalls.set(callId, session);
 
   // Don't send first message yet - wait for customer to answer
-  // We'll detect answer when we receive first audio packet
-  console.log("⏳ Waiting for customer to answer...");
+  // ESL event monitor will detect CHANNEL_ANSWER and trigger greeting
+  console.log("⏳ Waiting for customer to pick up call...");
 }
 
 async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
@@ -334,15 +383,9 @@ async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
 
   if (!session) return;
 
-  // First audio packet means call is answered!
+  // Don't process audio until call is answered (ESL event will trigger greeting)
   if (!session.isCallAnswered) {
-    session.isCallAnswered = true;
-    console.log("📞 Customer answered! Sending greeting...");
-
-    // Send the first message now that customer can hear us
-    await speakToCall(session, session.firstMessage);
-    session.hasGreeted = true;
-    return; // Don't process this first chunk
+    return; // Silently discard audio until customer picks up
   }
 
   // CRITICAL: Don't process audio while AI is speaking to avoid interruptions
