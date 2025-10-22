@@ -21,6 +21,9 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 
+// In-memory cache for generated audio files
+const audioCache = new Map<string, Uint8Array>();
+
 serve(async (req: Request) => {
   const url = new URL(req.url);
 
@@ -195,6 +198,25 @@ serve(async (req: Request) => {
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+  }
+
+  // Audio file endpoint - serve generated audio files
+  if (url.pathname.startsWith('/audio-file/')) {
+    const audioId = url.pathname.split('/audio-file/')[1];
+
+    // Get audio from in-memory cache
+    const audioData = audioCache.get(audioId);
+
+    if (!audioData) {
+      return new Response('Audio not found', { status: 404 });
+    }
+
+    return new Response(audioData, {
+      headers: {
+        'Content-Type': 'audio/mpeg',
+        'Content-Length': audioData.length.toString(),
+      },
+    });
   }
 
   // WebSocket endpoint for mod_audio_fork
@@ -593,11 +615,8 @@ async function originateCallViaESL(params: {
       .map(([key, value]) => `${key}='${value}'`)
       .join(',');
 
-    // Originate command with inline audio_fork
-    // Format: api originate {variables}sofia/gateway/name/number 'audio_fork(start wss://url both),park' inline
-    // This will answer, start audio_fork, then park the call
-    const aiHandlerUrl = variables.ai_handler_url;
-    const originateCmd = `api originate {${varString},origination_caller_id_number=${cleanNumber}}sofia/gateway/external::1360d030-6e0c-4617-83e0-8d80969010cf/${cleanNumber} 'audio_fork start ${aiHandlerUrl} both,park' inline`;
+    // Originate and park - we'll handle the conversation via ESL commands after answer
+    const originateCmd = `api originate {${varString},origination_caller_id_number=${cleanNumber}}sofia/gateway/external::1360d030-6e0c-4617-83e0-8d80969010cf/${cleanNumber} &park()`;
 
     console.log(`📞 Originating: ${originateCmd}`);
 
@@ -616,6 +635,11 @@ async function originateCallViaESL(params: {
       callId = uuidMatch ? uuidMatch[1] : `call_${Date.now()}`;
 
       console.log(`✅ Call originated successfully: ${callId}`);
+
+      // Start AI conversation handler in background
+      handleAIConversation(callId, variables).catch(err => {
+        console.error(`❌ AI conversation error for ${callId}:`, err);
+      });
 
       return {
         success: true,
@@ -662,6 +686,111 @@ async function originateCallViaESL(params: {
         // Ignore close errors
       }
     }
+  }
+}
+
+/**
+ * Handle AI conversation for a call
+ * Uses record + playback loop to simulate conversation
+ */
+async function handleAIConversation(callId: string, variables: Record<string, string>): Promise<void> {
+  const FREESWITCH_HOST = Deno.env.get('FREESWITCH_HOST') || '159.223.45.224';
+  const FREESWITCH_ESL_PORT = parseInt(Deno.env.get('FREESWITCH_ESL_PORT') || '8021');
+  const FREESWITCH_ESL_PASSWORD = Deno.env.get('FREESWITCH_ESL_PASSWORD') || 'ClueCon';
+
+  let conn: Deno.Conn | null = null;
+
+  try {
+    // Connect to FreeSWITCH ESL
+    conn = await Deno.connect({
+      hostname: FREESWITCH_HOST,
+      port: FREESWITCH_ESL_PORT,
+    });
+
+    // Authenticate
+    await readESLResponse(conn);
+    await sendESLCommand(conn, `auth ${FREESWITCH_ESL_PASSWORD}`);
+    await readESLResponse(conn);
+
+    console.log(`🤖 Starting AI conversation for call ${callId}`);
+
+    // Wait for call to be answered
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Play greeting with ElevenLabs
+    const greetingText = "Hello! This is an AI assistant. How can I help you today?";
+    await playAIResponse(conn, callId, greetingText);
+
+    // Conversation loop (simplified for now)
+    for (let i = 0; i < 5; i++) {
+      // Record customer speech (3 seconds max)
+      console.log(`🎤 Recording customer speech... (turn ${i + 1})`);
+      const recordFile = `/tmp/customer_${callId}_${i}.wav`;
+
+      await sendESLCommand(conn, `api uuid_record ${callId} start ${recordFile} 3`);
+      await readESLResponse(conn);
+
+      // Wait for recording
+      await new Promise(resolve => setTimeout(resolve, 4000));
+
+      // Stop recording
+      await sendESLCommand(conn, `api uuid_record ${callId} stop ${recordFile}`);
+      await readESLResponse(conn);
+
+      // Process audio (STT → GPT → TTS → Play)
+      // TODO: Implement full processing
+      console.log(`✅ Turn ${i + 1} completed`);
+    }
+
+    console.log(`✅ AI conversation completed for ${callId}`);
+
+  } catch (error) {
+    console.error(`❌ Error in AI conversation:`, error);
+  } finally {
+    if (conn) {
+      try {
+        conn.close();
+      } catch (e) {
+        // Ignore
+      }
+    }
+  }
+}
+
+/**
+ * Play AI response using ElevenLabs TTS
+ */
+async function playAIResponse(conn: Deno.Conn, callId: string, text: string): Promise<void> {
+  try {
+    console.log(`🔊 Generating speech: "${text}"`);
+
+    // Generate speech with ElevenLabs
+    const audioData = await textToSpeechElevenLabs(text);
+
+    // Store in cache with unique ID
+    const audioId = `${callId}_${Date.now()}`;
+    audioCache.set(audioId, audioData);
+
+    // Build audio URL
+    const audioUrl = `https://sifucall.deno.dev/audio-file/${audioId}`;
+
+    console.log(`🎵 Audio URL: ${audioUrl}`);
+
+    // Play the audio via HTTP stream
+    await sendESLCommand(conn, `api uuid_broadcast ${callId} ${audioUrl} both`);
+    const response = await readESLResponse(conn);
+
+    console.log(`📤 Playing AI response to customer: ${response.trim()}`);
+
+    // Wait for playback to finish (estimate based on text length)
+    const estimatedDuration = Math.max(3000, text.length * 50); // ~50ms per character
+    await new Promise(resolve => setTimeout(resolve, estimatedDuration));
+
+    // Clean up audio from cache after playback
+    audioCache.delete(audioId);
+
+  } catch (error) {
+    console.error(`❌ Error playing AI response:`, error);
   }
 }
 
