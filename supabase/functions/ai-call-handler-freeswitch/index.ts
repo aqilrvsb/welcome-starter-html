@@ -310,6 +310,7 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
     isProcessingAudio: false,
     isSpeaking: false,
     costs: { azure_stt: 0, llm: 0, tts: 0 },
+    audioFileCounter: 0, // Track temp file numbers for playback
   };
 
   activeCalls.set(callId, session);
@@ -516,6 +517,39 @@ async function speakToCall(session: any, text: string) {
     if (session.socket.readyState === WebSocket.OPEN) {
       session.socket.send(audioMessage);
       console.log("✅ Audio sent to FreeSWITCH in JSON format!");
+
+      // mod_audio_stream saves the file but doesn't auto-play it
+      // We need to play it manually using uuid_displace
+      // Give it a moment to save the file, then play it
+      setTimeout(async () => {
+        try {
+          const conn = await Deno.connect({
+            hostname: FREESWITCH_HOST,
+            port: FREESWITCH_ESL_PORT,
+          });
+
+          await readESLResponse(conn);
+          await sendESLCommand(conn, `auth ${FREESWITCH_ESL_PASSWORD}`);
+          await readESLResponse(conn);
+
+          // Use the latest temp file number
+          const fileNum = session.audioFileCounter || 0;
+          session.audioFileCounter = fileNum + 1;
+          const audioFile = `/tmp/${session.callId}_${fileNum}.tmp.r8`;
+
+          // Play the audio file to the call
+          const displaceCmd = `api uuid_displace ${session.callId} start ${audioFile} 0 w`;
+          console.log(`🎵 Playing audio: ${displaceCmd}`);
+
+          await sendESLCommand(conn, displaceCmd);
+          const displaceResponse = await readESLResponse(conn);
+          console.log(`🎵 Displace response: ${displaceResponse}`);
+
+          conn.close();
+        } catch (error) {
+          console.error("❌ Error playing audio:", error);
+        }
+      }, 100); // Wait 100ms for file to be saved
     }
 
     session.isSpeaking = false;
