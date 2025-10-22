@@ -777,7 +777,8 @@ async function playAIResponse(conn: Deno.Conn, callId: string, text: string): Pr
     console.log(`🎵 Audio URL: ${audioUrl}`);
 
     // Play the audio via HTTP stream using mod_shout
-    await sendESLCommand(conn, `api uuid_broadcast ${callId} ${audioUrl} both`);
+    // Use uuid_displace instead of uuid_broadcast for parked calls
+    await sendESLCommand(conn, `api uuid_displace ${callId} start ${audioUrl} 0 mux`);
     const response = await readESLResponse(conn);
 
     console.log(`📤 Playing AI response to customer: ${response.trim()}`);
