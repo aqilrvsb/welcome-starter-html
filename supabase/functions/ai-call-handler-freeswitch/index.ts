@@ -538,8 +538,8 @@ async function speakToCall(session: any, text: string) {
           const audioFile = `/tmp/${session.callId}_${fileNum}.tmp.r8`;
 
           // Play the audio file using file_string:// to explicitly specify L16 PCM format
-          // This tells FreeSWITCH exactly how to interpret the raw audio data
-          const fileString = `file_string://path=${audioFile};rate=8000;channels=1;bits_per_sample=16;codec=L16`;
+          // Correct syntax: file_string://{param1=value1,param2=value2}path/to/file
+          const fileString = `file_string://{rate=8000,channels=1}${audioFile}`;
           const broadcastCmd = `api uuid_broadcast ${session.callId} ${fileString} aleg`;
           console.log(`🎵 Playing audio: ${broadcastCmd}`);
 
