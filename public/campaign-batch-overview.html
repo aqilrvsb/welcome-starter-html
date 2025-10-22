@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="ms">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Campaign Batch Call Overview (Based on Call Outcome)</title>
+    <style>
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f6fa; margin: 0; padding: 20px; }
+      .container { max-width: 1200px; margin: 0 auto; }
+      h2 { color: #273c75; }
+      .filters { background: white; padding: 14px; border-radius: 8px; margin-bottom: 18px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);}
+      .filters input { padding: 7px 12px; border:1px solid #dcdde1; border-radius:4px;margin-right:10px;}
+      .filters button { background: #246bfd; color:white; border:none; padding:8px 18px; border-radius:4px; cursor:pointer;}
+      .filters button:hover { background: #3c8ff6;}
+      .table-wrapper { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 14px 12px; text-align: left; border-bottom: 1px solid #f1f2f6; }
+      th { background: #e1eaff; color: #273c75; font-size: 12px; font-weight: 600;}
+      tr:hover { background: #fafbff; }
+      .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+      .badge-success { background: #e8f8f5; color: #27ae60; }
+      .badge-danger { background: #fdeaea; color: #e74c3c; }
+      .view-btn { background: #246bfd; color: white; border: none; padding: 6px 16px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+      .view-btn:hover { background: #3c8ff6; }
+      #overlay { display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:80; }
+      #detailModal { display:none; position:fixed; top:50%; left:50%; background:#fff; width:90%; max-width:600px; border-radius:12px; transform:translate(-50%,-50%); z-index:99; padding:0; }
+      .modal-header { background: linear-gradient(135deg, #246bfd 0%, #3c8ff6 100%); color: white; padding: 20px; position: relative; }
+      .modal-header h3 { margin: 0; font-size: 18px; }
+      .close { position:absolute; top:15px; right:15px; background:rgba(255,255,255,0.2); color:#fff; border:none; border-radius:50%; font-size:20px; width:30px;height:30px; cursor:pointer;}
+      .modal-body { padding:20px; max-height:70vh; overflow-y:auto; }
+      .stat-row { display:flex; gap:10px; margin-bottom:16px; }
+      .stat-card { flex:1; background:#f8f9fa; padding:10px;text-align:center; border-radius:7px; }
+      .stat-card .label { font-size:12px; color:#7f8c8d; margin-bottom:4px; }
+      .stat-card .value { font-size:18px; font-weight:bold;}
+      .batch-list {margin-bottom:15px;}
+      .batch-row {background:#f9f9fa; margin-bottom:7px; padding:7px 10px; border-left:3px solid #246bfd; border-radius:6px;}
+      .call-list {padding-left:7px;}
+      .call-item {border-bottom:1px solid #f1f2f6; padding:5px 0;}
+      .empty-state {text-align:center;color:#888;padding:36px 0;}
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h2>📞 Campaign Batch Call Overview (Berdasarkan Call Outcome)</h2>
+      <div class="filters">
+        <input type="text" id="filterName" placeholder="Cari Nama Kempen..." />
+        <input type="date" id="filterDateFrom" placeholder="Dari Tarikh" />
+        <input type="date" id="filterDateTo" placeholder="Hingga Tarikh" />
+        <button onclick="applyFilter()">Cari</button>
+        <button onclick="resetFilter()">Reset</button>
+      </div>
+      <div class="table-wrapper">
+        <table id="groupedTable">
+          <thead>
+            <tr>
+              <th>Nama Kempen</th>
+              <th>Jumlah Batch</th>
+              <th>Jumlah Call</th>
+              <th>Angkat</th>
+              <th>Tak Angkat</th>
+              <th>Terakhir Dikemaskini</th>
+              <th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="groupedTbody">
+            <tr>
+              <td colspan="7" class="empty-state">Loading...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div id="overlay" onclick="closeDetail()"></div>
+    <div id="detailModal">
+      <div class="modal-header">
+        <h3 id="modalTitle">Detail Kempen</h3>
+        <button class="close" onclick="closeDetail()">×</button>
+      </div>
+      <div class="modal-body" id="detailContent"></div>
+    </div>
+    <script>
+      // --- KONFIG API ---
+      const CONFIG = {
+        API_BASE_URL: 'https://ahexnoaazbveiyhplfrc.supabase.co/functions/v1',
+        SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFoZXhub2FhemJ2ZWl5aHBsZnJjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAyNDMwMjIsImV4cCI6MjA3NTgxOTAyMn0.VH_VZsEngYCHZDESJXnQpkGWWQpxSGs0JsdrDfwfLYw',
+        USER_ID: 'aba31941-fe1a-4715-9ae6-577beff05972'
+      };
+      // Simpan batch data dan call logs mengikut batch_id
+      let allData = [];
+      let allCallLogs = {}; // { batch_id: [call, call, ...] }
+      let tableStats = []; // [ { campaign_name, jumlah_batch, jumlah_call, jumlah_angkat, jumlah_tak_angkat, updated_at } ]
+
+      document.addEventListener('DOMContentLoaded', async function () {
+        await loadAllBatchesAndCalls();
+        renderGroupedTable(tableStats);
+      });
+
+      // Fetch batches & calls (secara berkelompok, akan panggil by batch_id)
+      async function loadAllBatchesAndCalls() {
+        const tbody = document.getElementById('groupedTbody');
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading batch...</td></tr>';
+        try {
+          const batchUrl = `${CONFIG.API_BASE_URL}/campaign-batch-list?user_id=${CONFIG.USER_ID}&page=1&size=500`;
+          const res = await fetch(batchUrl, {method: 'GET', headers: {'apikey': CONFIG.SUPABASE_ANON_KEY, 'Content-Type': 'application/json'} });
+          allData = res.ok ? (await res.json()).data : [];
+
+          tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading calls...</td></tr>';
+          // Get call logs for every batch
+          allCallLogs = {};
+          await Promise.all(allData.map(async (batch) => {
+            const callUrl = `${CONFIG.API_BASE_URL}/campaign-batch-detail/${batch.batch_id}?user_id=${CONFIG.USER_ID}`;
+            const res2 = await fetch(callUrl, {method: 'GET', headers: {'apikey': CONFIG.SUPABASE_ANON_KEY, 'Content-Type': 'application/json'} });
+            const detail = res2.ok ? await res2.json() : {};
+            allCallLogs[batch.batch_id] = detail.calls || [];
+          }));
+
+          // Aggregate untuk paparan utama
+          tableStats = aggregateStatsByCampaign(allData, allCallLogs);
+        } catch (err) {
+          tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Ralat memuatkan data: ${err}</td></tr>`;
+        }
+      }
+
+      // Aggregate ikut call_outcome
+      function aggregateStatsByCampaign(batchData, callLogMap) {
+        const grouped = {};
+        batchData.forEach(row => {
+          if (!grouped[row.campaign_name]) grouped[row.campaign_name] = [];
+          grouped[row.campaign_name].push(row);
+        });
+        const result = [];
+        Object.keys(grouped).forEach(campaign => {
+          const group = grouped[campaign];
+          let angkat = 0, takAngkat = 0, total = 0;
+          group.forEach(batch => {
+            (callLogMap[batch.batch_id] || []).forEach(call => {
+              total++;
+              // Check multiple possible locations for call outcome
+              let outcome = '';
+              
+              // Priority 1: metadata.call_outcome
+              if (call.metadata && call.metadata.call_outcome) {
+                outcome = String(call.metadata.call_outcome).toLowerCase().trim();
+              }
+              // Priority 2: call.call_outcome
+              else if (call.call_outcome) {
+                outcome = String(call.call_outcome).toLowerCase().trim();
+              }
+              // Priority 3: metadata.structured_data.call_outcome
+              else if (call.metadata && call.metadata.structured_data && call.metadata.structured_data.call_outcome) {
+                outcome = String(call.metadata.structured_data.call_outcome).toLowerCase().trim();
+              }
+              // Priority 4: status field
+              else if (call.status) {
+                outcome = String(call.status).toLowerCase().trim();
+              }
+              
+              // Logic: angkat = answered/answer/completed, selain itu = tak angkat
+              if (['answered', 'answer', 'completed'].includes(outcome)) {
+                angkat++;
+              } else {
+                takAngkat++;
+              }
+            });
+          });
+          result.push({
+            campaign_name: campaign,
+            jumlah_batch: group.length,
+            jumlah_call: total,
+            jumlah_angkat: angkat,
+            jumlah_tak_angkat: takAngkat,
+            updated_at: formatLatest(group, 'updated_at')
+          });
+        });
+        return result;
+      }
+
+
+      // Table rendering
+      function renderGroupedTable(dataTable) {
+        const tbody = document.getElementById('groupedTbody');
+        if (!dataTable.length) {
+          tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Tiada data dijumpai.</td></tr>`;
+          return;
+        }
+        let html = '';
+        dataTable.forEach(row => {
+          html += `
+            <tr>
+              <td><b>${row.campaign_name}</b></td>
+              <td>${row.jumlah_batch}</td>
+              <td>${row.jumlah_call}</td>
+              <td><span class="badge badge-success">${row.jumlah_angkat} Angkat</span></td>
+              <td><span class="badge badge-danger">${row.jumlah_tak_angkat} Tak Angkat</span></td>
+              <td><small>${row.updated_at}</small></td>
+              <td>
+                <button class="view-btn" onclick="viewDetailKempen('${encodeURIComponent(row.campaign_name)}')">👁️ View</button>
+              </td>
+            </tr>
+          `;
+        });
+        tbody.innerHTML = html;
+      }
+
+      // Filter (client-side)
+      function applyFilter() {
+        let name = document.getElementById('filterName').value.trim().toLowerCase();
+        let dateFrom = document.getElementById('filterDateFrom').value; // format yyyy-mm-dd
+        let dateTo = document.getElementById('filterDateTo').value; // format yyyy-mm-dd
+        let filtered = allData;
+        
+        if (name) {
+          filtered = filtered.filter(row => (row.campaign_name||'').toLowerCase().includes(name));
+        }
+        
+        if (dateFrom && dateTo) {
+          filtered = filtered.filter(row => {
+            if (!row.created_at) return false;
+            const rowDate = row.created_at.slice(0,10);
+            return rowDate >= dateFrom && rowDate <= dateTo;
+          });
+        } else if (dateFrom) {
+          filtered = filtered.filter(row => row.created_at && row.created_at.slice(0,10) >= dateFrom);
+        } else if (dateTo) {
+          filtered = filtered.filter(row => row.created_at && row.created_at.slice(0,10) <= dateTo);
+        }
+        
+        let filteredStats = aggregateStatsByCampaign(filtered, allCallLogs);
+        renderGroupedTable(filteredStats);
+      }
+      
+      function resetFilter() {
+        document.getElementById('filterName').value = '';
+        document.getElementById('filterDateFrom').value = '';
+        document.getElementById('filterDateTo').value = '';
+        renderGroupedTable(tableStats);
+      }
+
+      function formatLatest(arr, key) {
+        if (!arr.length) return '-';
+        let latest = arr[0][key];
+        arr.forEach(r => { if (r[key] > latest) latest = r[key]; });
+        return formatDateTime(latest);
+      }
+      async function viewDetailKempen(campaignName) {
+        campaignName = decodeURIComponent(campaignName);
+        document.getElementById('overlay').style.display = 'block';
+        document.getElementById('detailModal').style.display = 'block';
+        document.getElementById('modalTitle').innerText = `Detail "${campaignName}"`;
+        // Get all batch rows for campaign_name
+        const batchList = allData.filter(r => r.campaign_name === campaignName);
+        let html = `<div class="batch-list">`;
+        if (batchList.length < 1) {
+          html += `<div class="empty-state">Tiada batch ditemui untuk kempen ini.</div>`;
+        } else {
+          batchList.forEach(batch => {
+            // Kira Angkat/Tak Angkat ikut call_outcome
+            let angkat=0, takAngkat=0;
+            (allCallLogs[batch.batch_id]||[]).forEach(call=>{
+              let outcome = '';
+              if (call.metadata && call.metadata.call_outcome) outcome = String(call.metadata.call_outcome).toLowerCase().trim();
+              else if (call.call_outcome) outcome = String(call.call_outcome).toLowerCase().trim();
+              else if (call.metadata && call.metadata.structured_data && call.metadata.structured_data.call_outcome) 
+                outcome = String(call.metadata.structured_data.call_outcome).toLowerCase().trim();
+              else if (call.status) outcome = String(call.status).toLowerCase().trim();
+              
+              if (['answered','answer','completed'].includes(outcome)) angkat++;
+              else takAngkat++;
+            });
+            html += `
+              <div class="batch-row">
+                <div><b>Batch #${batch.batch_id}</b></div>
+                <div>
+                  <span class="badge badge-success">${angkat} Angkat</span>
+                  <span class="badge badge-danger">${takAngkat} Tak Angkat</span>
+                  <b>Call:</b> ${(allCallLogs[batch.batch_id]||[]).length}
+                  <small> | Dibuat: ${formatDateTime(batch.created_at)} | Dikemaskini: ${formatDateTime(batch.updated_at)}</small>
+                </div>
+                <button class="view-btn" onclick="viewDetailBatch('${batch.batch_id}', this)">Lihat Call</button>
+                <div class="call-list" id="call-list-${batch.batch_id}" style="display:none;"></div>
+              </div>
+            `;
+          });
+        }
+        html += `</div>`;
+        document.getElementById('detailContent').innerHTML = html;
+      }
+      function viewDetailBatch(batchId, btn) {
+        const target = document.getElementById(`call-list-${batchId}`);
+        if (target.style.display === 'block') { target.style.display = 'none'; return; }
+        target.innerHTML = '<div style="color:#888;">Memuatkan details...</div>';
+        target.style.display = 'block';
+        btn.innerText = 'Sembunyi Call';
+        // call, label ikut metadata.call_outcome
+        let calls = allCallLogs[batchId] || [];
+        if (calls.length > 0) {
+          target.innerHTML = calls.map(call => {
+            let outcome = '';
+            if (call.metadata && call.metadata.call_outcome) outcome = String(call.metadata.call_outcome).toLowerCase().trim();
+            else if (call.call_outcome) outcome = String(call.call_outcome).toLowerCase().trim();
+            else if (call.metadata && call.metadata.structured_data && call.metadata.structured_data.call_outcome) 
+              outcome = String(call.metadata.structured_data.call_outcome).toLowerCase().trim();
+            else if (call.status) outcome = String(call.status).toLowerCase().trim();
+            
+            const isAnswered = ['answered','answer','completed'].includes(outcome);
+            return `
+              <div class="call-item">📞 ${call.phone_number}
+                - <span class="badge ${isAnswered ? 'badge-success':'badge-danger'}">${isAnswered ? 'Angkat':'Tak Angkat'}</span>
+                <span style="color:#888"> [${formatDateTime(call.call_time)}] (${outcome || 'no status'})</span>
+              </div>
+            `;
+          }).join('');
+        } else {
+          target.innerHTML = '<div class="empty-state" style="padding:9px 0 0;">Tiada call details.</div>';
+        }
+      }
+      function closeDetail() {
+        document.getElementById('detailModal').style.display = 'none';
+        document.getElementById('overlay').style.display = 'none';
+      }
+      function formatDateTime(dateStr) {
+        if (!dateStr) return '-';
+        return dateStr.replace('T', ' ').substring(0, 19);
+      }
+    </script>
+  </body>
+</html>

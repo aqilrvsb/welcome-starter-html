@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git init:*)",
+      "Bash(git remote add:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npm install:*)",
+      "Bash(node setup-supabase.js)",
+      "Bash(supabase:*)",
+      "Bash(node:*)",
+      "Bash(npx supabase functions deploy:*)",
+      "Bash(git config:*)",
+      "Bash(git log:*)",
+      "Bash(tasklist)",
+      "Bash(findstr:*)",
+      "Bash(netstat:*)",
+      "Bash(powershell:*)",
+      "Read(//c/Users/ACER/Videos/aicall-master (1)/**)",
+      "Read(//c/Users/ACER/Videos/aicall-master (1)/hi-there-buddy-2843/**)",
+      "Bash(xcopy:*)",
+      "Read(//c/Users/ACER/Videos/aicall-master (1)/welcome-starter-html/**)",
+      "Read(//c/Users/aqilz/Documents/call-center-ai-main/**)",
+      "Bash(dir)",
+      "Bash(dir:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
