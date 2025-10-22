@@ -771,12 +771,12 @@ async function playAIResponse(conn: Deno.Conn, callId: string, text: string): Pr
     const audioId = `${callId}_${Date.now()}`;
     audioCache.set(audioId, audioData);
 
-    // Build audio URL
-    const audioUrl = `https://sifucall.deno.dev/audio-file/${audioId}`;
+    // Build audio URL using shout:// protocol for mod_shout
+    const audioUrl = `shout://sifucall.deno.dev/audio-file/${audioId}`;
 
     console.log(`🎵 Audio URL: ${audioUrl}`);
 
-    // Play the audio via HTTP stream
+    // Play the audio via HTTP stream using mod_shout
     await sendESLCommand(conn, `api uuid_broadcast ${callId} ${audioUrl} both`);
     const response = await readESLResponse(conn);
 
