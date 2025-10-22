@@ -1,836 +1,535 @@
 /**
- * AI Call Handler for FreeSWITCH + AlienVOIP
+ * AI Call Handler for FreeSWITCH + mod_audio_stream
  *
- * Receives real-time audio from FreeSWITCH mod_audio_fork via WebSocket
- * Processes with Azure STT → OpenRouter GPT → ElevenLabs TTS
- * Streams audio back to customer
+ * ARCHITECTURE (matches Twilio exactly):
+ * 1. FreeSWITCH call → mod_audio_stream → WebSocket to this server
+ * 2. Audio → Azure STT → GPT-4o-mini → ElevenLabs TTS
+ * 3. Audio streams back to FreeSWITCH → Customer hears AI
+ *
+ * Same real-time bidirectional audio streaming as Twilio!
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
-// Audio format constants for FreeSWITCH
-const SAMPLE_RATE = 8000; // FreeSWITCH sends 8kHz
-const CHANNELS = 1; // Mono
-const BITS_PER_SAMPLE = 16; // 16-bit PCM
-
-// CORS headers
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
 };
 
-// In-memory cache for generated audio files
-const audioCache = new Map<string, Uint8Array>();
+// Master API Keys
+const AZURE_SPEECH_KEY = Deno.env.get('AZURE_SPEECH_KEY');
+const AZURE_SPEECH_REGION = Deno.env.get('AZURE_SPEECH_REGION') || 'southeastasia';
+const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
+const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
+const FREESWITCH_HOST = Deno.env.get('FREESWITCH_HOST') || '159.223.45.224';
+const FREESWITCH_ESL_PORT = parseInt(Deno.env.get('FREESWITCH_ESL_PORT') || '8021');
+const FREESWITCH_ESL_PASSWORD = Deno.env.get('FREESWITCH_ESL_PASSWORD') || 'ClueCon';
 
-serve(async (req: Request) => {
-  const url = new URL(req.url);
+const supabaseAdmin = createClient(
+  Deno.env.get('SUPABASE_URL') ?? '',
+  Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+);
 
-  // Handle CORS preflight
+serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Health check
-  if (url.pathname === '/health') {
-    return new Response('OK - FreeSWITCH AI Handler Ready', { status: 200 });
-  }
+  const url = new URL(req.url);
 
-  // Batch Call endpoint - handles massive concurrent calls (200 clients × 1000 calls each)
+  // Batch call endpoint
   if (url.pathname === '/batch-call' && req.method === 'POST') {
-    try {
-      const requestBody = await req.json();
-      const { userId, campaignName, promptId, phoneNumbers, phoneNumbersWithNames, retryEnabled, retryIntervalMinutes, maxRetryAttempts } = requestBody;
-
-      if (!userId || !phoneNumbers || !Array.isArray(phoneNumbers)) {
-        return new Response(
-          JSON.stringify({ error: 'Missing required parameters: userId, phoneNumbers' }),
-          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      console.log(`🚀 Starting batch call campaign: ${campaignName} for user: ${userId}`);
-      console.log(`📞 Total numbers: ${phoneNumbers.length}`);
-
-      // Initialize Supabase client
-      const supabase = createClient(
-        Deno.env.get('SUPABASE_URL')!,
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-      );
-
-      // Get user data
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('id, username, credits_balance')
-        .eq('id', userId)
-        .single();
-
-      if (userError || !userData) {
-        return new Response(
-          JSON.stringify({ error: 'User not found' }),
-          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Check credits (AlienVOIP: RM0.008/min, estimate 2 min per call)
-      const estimatedCostPerCall = 0.016; // RM0.008 × 2 min
-      const estimatedTotalCost = phoneNumbers.length * estimatedCostPerCall;
-      const requiredBalance = estimatedTotalCost * 0.5; // Require 50% upfront
-
-      if (userData.credits_balance < requiredBalance) {
-        return new Response(
-          JSON.stringify({
-            error: `Insufficient credits. Required: RM${requiredBalance.toFixed(2)}, Available: RM${userData.credits_balance.toFixed(2)}. Please top up.`
-          }),
-          { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // Create campaign
-      const { data: campaign, error: campaignError } = await supabase
-        .from('campaigns')
-        .insert({
-          user_id: userData.id,
-          campaign_name: campaignName,
-          prompt_id: promptId,
-          status: 'in_progress',
-          total_numbers: phoneNumbers.length,
-          retry_enabled: retryEnabled || false,
-          retry_interval_minutes: retryIntervalMinutes || 30,
-          max_retry_attempts: maxRetryAttempts || 3,
-          current_retry_count: 0
-        })
-        .select()
-        .single();
-
-      if (campaignError) {
-        return new Response(
-          JSON.stringify({ error: 'Failed to create campaign: ' + campaignError.message }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      console.log(`✅ Created campaign ${campaign.id}`);
-
-      // Process all calls concurrently (handles 200k+ calls easily on Deno Deploy)
-      const callPromises = phoneNumbers.map(async (phoneNumber: string, index: number) => {
-        try {
-          // Get customer name from map
-          const customerData = phoneNumbersWithNames?.find((item: any) => item.phone_number === phoneNumber);
-          const customerName = customerData?.customer_name || '';
-
-          console.log(`📞 [${index + 1}/${phoneNumbers.length}] Calling ${phoneNumber} via FreeSWITCH ESL`);
-
-          // Connect to FreeSWITCH ESL and originate call
-          const callResult = await originateCallViaESL({
-            phoneNumber,
-            extension: '99999',
-            variables: {
-              user_id: userId,
-              campaign_id: campaign.id,
-              prompt_id: promptId,
-              customer_name: customerName,
-              ai_handler_url: `wss://${req.headers.get('host')}/audio`
-            }
-          });
-
-          if (!callResult.success) {
-            throw new Error(callResult.error || 'Call origination failed');
-          }
-
-          console.log(`✅ Call ${index + 1} originated: ${callResult.callId}`);
-
-          // Log to database
-          await supabase.from('call_logs').insert({
-            user_id: userId,
-            campaign_id: campaign.id,
-            phone_number: phoneNumber,
-            customer_name: customerName,
-            call_id: callResult.callId,
-            status: 'initiated',
-            agent_id: promptId,
-            caller_number: phoneNumber
-          });
-
-          return { success: true, phoneNumber, callId: callResult.callId };
-        } catch (error) {
-          console.error(`❌ Failed to call ${phoneNumber}:`, error);
-          return { success: false, phoneNumber, error: error instanceof Error ? error.message : 'Unknown error' };
-        }
-      });
-
-      // Wait for all calls to complete
-      const results = await Promise.all(callPromises);
-
-      const successfulCalls = results.filter(r => r.success).length;
-      const failedCalls = results.filter(r => !r.success).length;
-
-      // Update campaign status
-      await supabase
-        .from('campaigns')
-        .update({
-          status: failedCalls === phoneNumbers.length ? 'failed' : 'completed',
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', campaign.id);
-
-      console.log(`🎉 Campaign completed! Success: ${successfulCalls}, Failed: ${failedCalls}`);
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          campaign_id: campaign.id,
-          summary: {
-            total_calls: phoneNumbers.length,
-            successful_calls: successfulCalls,
-            failed_calls: failedCalls
-          },
-          results: results
-        }),
-        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-
-    } catch (error) {
-      console.error('❌ Batch call error:', error);
-      return new Response(
-        JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    return handleBatchCall(req);
   }
 
-  // Audio file endpoint - serve generated audio files
-  if (url.pathname.startsWith('/audio-file/')) {
-    const audioId = url.pathname.split('/audio-file/')[1];
-
-    // Get audio from in-memory cache
-    const audioData = audioCache.get(audioId);
-
-    if (!audioData) {
-      return new Response('Audio not found', { status: 404 });
-    }
-
-    return new Response(audioData, {
-      headers: {
-        'Content-Type': 'audio/mpeg',
-        'Content-Length': audioData.length.toString(),
-      },
-    });
-  }
-
-  // WebSocket endpoint for mod_audio_fork
-  if (url.pathname === '/audio' && req.headers.get('upgrade') === 'websocket') {
+  // WebSocket endpoint for mod_audio_stream (SAME AS TWILIO!)
+  const upgrade = req.headers.get("upgrade") || "";
+  if (upgrade.toLowerCase() === "websocket") {
     const { socket, response } = Deno.upgradeWebSocket(req);
 
-    let callId = '';
-    let userId = '';
-    let campaignId = '';
-    let promptId = '';
-    let customerName = '';
-    let audioBuffer: Uint8Array[] = [];
-    let processingAudio = false;
-
     socket.onopen = () => {
-      console.log('🎤 FreeSWITCH audio stream connected!');
+      console.log("🎤 FreeSWITCH audio WebSocket connected!");
     };
 
     socket.onmessage = async (event) => {
       try {
-        // Check if message is text (metadata) or binary (audio)
+        // mod_audio_stream sends audio as binary or JSON metadata
         if (typeof event.data === 'string') {
-          // Parse metadata from FreeSWITCH
           const metadata = JSON.parse(event.data);
-          console.log('📋 Received metadata:', metadata);
-
-          callId = metadata.call_id || '';
-          userId = metadata.user_id || '';
-          campaignId = metadata.campaign_id || '';
-          promptId = metadata.prompt_id || '';
-          customerName = metadata.customer_name || '';
-
-          // Send acknowledgment
-          socket.send(JSON.stringify({
-            type: 'ready',
-            message: 'AI handler ready'
-          }));
-
-          return;
-        }
-
-        // Handle binary audio data
-        const audioData = new Uint8Array(await event.data.arrayBuffer());
-        console.log(`📥 Received ${audioData.length} bytes of audio from FreeSWITCH`);
-
-        // Buffer audio (collect ~1 second worth = 8000 samples * 2 bytes = 16KB)
-        audioBuffer.push(audioData);
-
-        const totalBufferSize = audioBuffer.reduce((sum, chunk) => sum + chunk.length, 0);
-
-        // Process when we have enough audio (1 second)
-        if (totalBufferSize >= 16000 && !processingAudio) {
-          processingAudio = true;
-
-          // Combine buffer
-          const combinedBuffer = new Uint8Array(totalBufferSize);
-          let offset = 0;
-          for (const chunk of audioBuffer) {
-            combinedBuffer.set(chunk, offset);
-            offset += chunk.length;
-          }
-
-          // Clear buffer
-          audioBuffer = [];
-
-          // Process audio asynchronously
-          processAudio(combinedBuffer, socket, {
-            userId,
-            campaignId,
-            promptId,
-            customerName,
-            callId
-          }).finally(() => {
-            processingAudio = false;
-          });
+          console.log('📋 Metadata:', metadata);
+          await handleCallStart(socket, metadata);
+        } else {
+          // Binary audio data (16-bit PCM from mod_audio_stream)
+          await handleMediaStream(socket, event.data);
         }
       } catch (error) {
-        console.error('❌ Error processing message:', error);
+        console.error("❌ Error:", error);
       }
     };
 
     socket.onclose = () => {
-      console.log('📞 Call ended');
-    };
-
-    socket.onerror = (error) => {
-      console.error('❌ WebSocket error:', error);
+      console.log("📞 Call ended");
     };
 
     return response;
   }
 
-  return new Response('FreeSWITCH AI Call Handler\nUse WebSocket at /audio', {
-    status: 200,
-    headers: { 'Content-Type': 'text/plain' }
-  });
+  return new Response('FreeSWITCH AI Handler - Use WebSocket or POST /batch-call', { status: 200 });
 });
 
-/**
- * Process audio: STT → GPT → TTS → Send back
- */
-async function processAudio(
-  audioData: Uint8Array,
-  socket: WebSocket,
-  context: {
-    userId: string;
-    campaignId: string;
-    promptId: string;
-    customerName: string;
-    callId: string;
-  }
-) {
+// Store active call sessions
+const activeCalls = new Map();
+
+async function handleBatchCall(req: Request): Promise<Response> {
   try {
-    console.log('🎯 Processing audio...');
+    const { userId, campaignName, promptId, phoneNumbers, phoneNumbersWithNames } = await req.json();
 
-    // Step 1: Convert PCM to WAV for Azure STT
-    const wavData = pcmToWav(audioData, SAMPLE_RATE, CHANNELS, BITS_PER_SAMPLE);
-
-    // Step 2: Transcribe with Azure STT
-    const transcript = await transcribeWithAzure(wavData);
-
-    if (!transcript || transcript.trim() === '') {
-      console.log('🔇 No speech detected');
-      return;
+    if (!userId || !phoneNumbers) {
+      throw new Error('Missing userId or phoneNumbers');
     }
 
-    console.log('💬 Customer said:', transcript);
+    const { data: userData } = await supabaseAdmin
+      .from('users')
+      .select('*')
+      .eq('id', userId)
+      .single();
 
-    // Step 3: Get AI response from OpenRouter
-    const aiResponse = await getAIResponse(transcript, context);
-    console.log('🤖 AI responds:', aiResponse);
+    if (!userData) throw new Error('User not found');
 
-    // Step 4: Convert to speech with ElevenLabs
-    const responseAudio = await textToSpeechElevenLabs(aiResponse);
-    console.log('🔊 Generated speech audio');
+    // Get prompt
+    const { data: prompt } = await supabaseAdmin
+      .from('prompts')
+      .select('*')
+      .eq('id', promptId)
+      .eq('user_id', userId)
+      .single();
 
-    // Step 5: Send audio back to FreeSWITCH
-    // FreeSWITCH expects raw PCM, so convert if needed
-    const pcmAudio = await convertToPCM(responseAudio, SAMPLE_RATE);
+    if (!prompt) throw new Error('Prompt not found');
 
-    socket.send(pcmAudio);
-    console.log('📤 Sent audio back to customer');
+    // Create campaign
+    const { data: campaign, error: campaignError } = await supabaseAdmin
+      .from('campaigns')
+      .insert({
+        user_id: userId,
+        campaign_name: campaignName,
+        prompt_id: prompt.id,
+        status: 'in_progress',
+        total_numbers: phoneNumbers.length,
+      })
+      .select()
+      .single();
 
-    // Step 6: Log to database
-    await logCallInteraction(context.callId, transcript, aiResponse);
-
-  } catch (error) {
-    console.error('❌ Error in processAudio:', error);
-  }
-}
-
-/**
- * Convert PCM to WAV format
- */
-function pcmToWav(
-  pcmData: Uint8Array,
-  sampleRate: number,
-  channels: number,
-  bitsPerSample: number
-): Uint8Array {
-  const byteRate = sampleRate * channels * bitsPerSample / 8;
-  const blockAlign = channels * bitsPerSample / 8;
-  const dataSize = pcmData.length;
-
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
-
-  // WAV header
-  const writeString = (offset: number, string: string) => {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
+    if (campaignError || !campaign) {
+      throw new Error('Failed to create campaign: ' + (campaignError?.message || 'Unknown error'));
     }
-  };
 
-  writeString(0, 'RIFF');
-  view.setUint32(4, 36 + dataSize, true);
-  writeString(8, 'WAVE');
-  writeString(12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, channels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitsPerSample, true);
-  writeString(36, 'data');
-  view.setUint32(40, dataSize, true);
+    const WEBSOCKET_URL = `wss://${req.headers.get('host')}`;
 
-  // Copy PCM data
-  const wavData = new Uint8Array(buffer);
-  wavData.set(pcmData, 44);
+    // Process calls
+    const results = await Promise.all(phoneNumbers.map(async (phoneNumber: string) => {
+      try {
+        const cleanNumber = phoneNumber.replace(/\D/g, '');
+        const callId = await originateCallWithAudioStream({
+          phoneNumber: cleanNumber,
+          userId,
+          campaignId: campaign.id,
+          promptId: prompt.id,
+          websocketUrl: WEBSOCKET_URL,
+        });
 
-  return wavData;
-}
+        await supabaseAdmin.from('call_logs').insert({
+          campaign_id: campaign.id,
+          user_id: userId,
+          call_id: callId,
+          phone_number: phoneNumber,
+          status: 'initiated',
+        });
 
-/**
- * Azure Speech-to-Text
- */
-async function transcribeWithAzure(wavData: Uint8Array): Promise<string> {
-  const azureKey = Deno.env.get('AZURE_SPEECH_KEY');
-  const azureRegion = Deno.env.get('AZURE_SPEECH_REGION') || 'southeastasia';
+        return { success: true, phoneNumber, callId };
+      } catch (error) {
+        return { success: false, phoneNumber, error: String(error) };
+      }
+    }));
 
-  if (!azureKey) {
-    throw new Error('AZURE_SPEECH_KEY not set');
-  }
+    const successCount = results.filter(r => r.success).length;
+    const failedCount = results.filter(r => !r.success).length;
 
-  const response = await fetch(
-    `https://${azureRegion}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US`,
-    {
-      method: 'POST',
-      headers: {
-        'Ocp-Apim-Subscription-Key': azureKey,
-        'Content-Type': 'audio/wav',
+    await supabaseAdmin
+      .from('campaigns')
+      .update({
+        status: 'completed',
+        successful_calls: successCount,
+        failed_calls: failedCount
+      })
+      .eq('id', campaign.id);
+
+    return new Response(JSON.stringify({
+      success: true,
+      campaign_id: campaign.id,
+      summary: {
+        total: phoneNumbers.length,
+        successful: successCount,
+        failed: failedCount
       },
-      body: wavData,
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Azure STT failed: ${response.statusText}`);
+      results
+    }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    return new Response(JSON.stringify({ error: String(error) }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
-
-  const result = await response.json();
-  return result.DisplayText || '';
 }
 
 /**
- * Get AI response from OpenRouter
+ * Originate call via FreeSWITCH ESL with mod_audio_stream
  */
-async function getAIResponse(
-  userMessage: string,
-  context: { userId: string; promptId: string; customerName: string }
-): Promise<string> {
-  const openrouterKey = Deno.env.get('OPENROUTER_API_KEY');
+async function originateCallWithAudioStream(params: any): Promise<string> {
+  const { phoneNumber, userId, campaignId, promptId, websocketUrl } = params;
 
-  if (!openrouterKey) {
-    throw new Error('OPENROUTER_API_KEY not set');
-  }
-
-  // Get system prompt from database
-  const supabase = createClient(
-    Deno.env.get('SUPABASE_URL')!,
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  );
-
-  const { data: prompt } = await supabase
-    .from('prompts')
-    .select('system_prompt, first_message')
-    .eq('id', context.promptId)
-    .single();
-
-  const systemPrompt = prompt?.system_prompt || 'You are a helpful AI assistant.';
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${openrouterKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'openai/gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userMessage }
-      ],
-      max_tokens: 150,
-      temperature: 0.7,
-    }),
+  const conn = await Deno.connect({
+    hostname: FREESWITCH_HOST,
+    port: FREESWITCH_ESL_PORT,
   });
 
-  if (!response.ok) {
-    throw new Error(`OpenRouter failed: ${response.statusText}`);
-  }
+  // Authenticate
+  await readESLResponse(conn);
+  await sendESLCommand(conn, `auth ${FREESWITCH_ESL_PASSWORD}`);
+  await readESLResponse(conn);
 
-  const result = await response.json();
-  return result.choices[0]?.message?.content || 'I apologize, I did not understand that.';
+  // Build originate command with mod_audio_stream
+  const vars = [
+    `user_id=${userId}`,
+    `campaign_id=${campaignId}`,
+    `prompt_id=${promptId}`,
+    `origination_caller_id_number=${phoneNumber}`,
+  ].join(',');
+
+  // Use mod_audio_stream to stream audio to WebSocket
+  const originateCmd = `api originate {${vars}}sofia/gateway/external::1360d030-6e0c-4617-83e0-8d80969010cf/${phoneNumber} &audio_stream(${websocketUrl},L16)`;
+
+  console.log(`📞 Originating: ${originateCmd}`);
+
+  await sendESLCommand(conn, originateCmd);
+  const response = await readESLResponse(conn);
+
+  console.log(`📋 Response: ${response}`);
+
+  const uuidMatch = response.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
+  const callId = uuidMatch ? uuidMatch[1] : `call_${Date.now()}`;
+
+  conn.close();
+
+  return callId;
 }
 
-/**
- * Text-to-Speech with ElevenLabs
- */
-async function textToSpeechElevenLabs(text: string): Promise<Uint8Array> {
-  const elevenLabsKey = Deno.env.get('ELEVENLABS_API_KEY');
-  const voiceId = Deno.env.get('ELEVENLABS_VOICE_ID') || 'EXAVITQu4vr4xnSDxMaL'; // Default voice
+async function handleCallStart(socket: WebSocket, metadata: any) {
+  const callId = metadata.call_id || metadata.uuid || 'unknown';
+  const userId = metadata.user_id || '';
+  const campaignId = metadata.campaign_id || '';
+  const promptId = metadata.prompt_id || '';
 
-  if (!elevenLabsKey) {
-    throw new Error('ELEVENLABS_API_KEY not set');
+  console.log(`📞 Call started: ${callId}`);
+
+  // Fetch voice config and prompts (same as Twilio code)
+  let voiceId = "UcqZLa941Kkt8ZhEEybf";
+  let voiceSpeed = 1.5;
+  let systemPrompt = "You are a helpful AI assistant.";
+  let firstMessage = "Hello! How can I help you today?";
+
+  if (userId) {
+    const { data: voiceConfig } = await supabaseAdmin
+      .from('voice_config')
+      .select('manual_voice_id, speed')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (voiceConfig) {
+      voiceId = voiceConfig.manual_voice_id || voiceId;
+      voiceSpeed = voiceConfig.speed || voiceSpeed;
+    }
   }
 
-  const response = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-    {
+  if (promptId && userId) {
+    const { data: promptData } = await supabaseAdmin
+      .from('prompts')
+      .select('system_prompt, first_message')
+      .eq('id', promptId)
+      .eq('user_id', userId)
+      .single();
+
+    if (promptData) {
+      systemPrompt = promptData.system_prompt;
+      firstMessage = promptData.first_message;
+    }
+  }
+
+  // Initialize session (SAME AS TWILIO!)
+  const session = {
+    callId,
+    userId,
+    campaignId,
+    systemPrompt,
+    firstMessage,
+    voiceId,
+    voiceSpeed,
+    socket,
+    startTime: new Date(),
+    transcript: [],
+    conversationHistory: [{ role: 'system', content: systemPrompt }],
+    audioBuffer: [],
+    isProcessingAudio: false,
+    isSpeaking: false,
+    costs: { azure_stt: 0, llm: 0, tts: 0 },
+  };
+
+  activeCalls.set(callId, session);
+
+  // Send first message
+  await speakToCall(session, firstMessage);
+}
+
+async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
+  // Find session
+  let session = null;
+  for (const [_, sess] of activeCalls.entries()) {
+    if (sess.socket === socket) {
+      session = sess;
+      break;
+    }
+  }
+
+  if (!session || session.isProcessingAudio || session.isSpeaking) return;
+
+  // Convert to Uint8Array (mod_audio_stream sends L16/PCM)
+  const pcmData = new Uint8Array(audioData);
+  session.audioBuffer.push(pcmData);
+
+  // Process every ~1 second
+  const totalSize = session.audioBuffer.reduce((sum: number, arr: Uint8Array) => sum + arr.length, 0);
+  if (totalSize >= 16000) {
+    session.isProcessingAudio = true;
+
+    const combined = new Uint8Array(totalSize);
+    let offset = 0;
+    for (const chunk of session.audioBuffer) {
+      combined.set(chunk, offset);
+      offset += chunk.length;
+    }
+    session.audioBuffer = [];
+
+    await transcribeAudio(session, combined);
+    session.isProcessingAudio = false;
+  }
+}
+
+// Helper function to create WAV header for PCM audio
+function createWavHeader(audioLength: number) {
+  const header = new ArrayBuffer(44);
+  const view = new DataView(header);
+
+  view.setUint32(0, 0x52494646, false); // "RIFF"
+  view.setUint32(4, audioLength + 36, true);
+  view.setUint32(8, 0x57415645, false); // "WAVE"
+  view.setUint32(12, 0x666d7420, false); // "fmt "
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // Mono
+  view.setUint32(24, 8000, true); // Sample rate
+  view.setUint32(28, 16000, true); // Byte rate
+  view.setUint16(32, 2, true); // Block align
+  view.setUint16(34, 16, true); // Bits per sample
+  view.setUint32(36, 0x64617461, false); // "data"
+  view.setUint32(40, audioLength, true);
+
+  return new Uint8Array(header);
+}
+
+async function transcribeAudio(session: any, audioBytes: Uint8Array) {
+  try {
+    if (audioBytes.length < 1200) return;
+
+    console.log(`🎙️ Transcribing ${audioBytes.length} bytes...`);
+
+    // Create WAV file
+    const wavHeader = createWavHeader(audioBytes.length);
+    const wavFile = new Uint8Array(wavHeader.length + audioBytes.length);
+    wavFile.set(wavHeader, 0);
+    wavFile.set(audioBytes, wavHeader.length);
+
+    // Azure STT
+    const response = await fetch(
+      `https://${AZURE_SPEECH_REGION}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=ms-MY`,
+      {
+        method: 'POST',
+        headers: {
+          'Ocp-Apim-Subscription-Key': AZURE_SPEECH_KEY || '',
+          'Content-Type': 'audio/wav',
+        },
+        body: wavFile,
+      }
+    );
+
+    if (!response.ok) return;
+
+    const result = await response.json();
+
+    if (result.RecognitionStatus === 'Success' && result.DisplayText) {
+      const transcript = result.DisplayText.trim();
+      if (transcript.length > 0) {
+        console.log(`🗣️  Customer: "${transcript}"`);
+
+        session.transcript.push({ speaker: 'user', text: transcript, timestamp: new Date() });
+        session.conversationHistory.push({ role: 'user', content: transcript });
+
+        await getAIResponse(session, transcript);
+      }
+    }
+  } catch (error) {
+    console.error("❌ Transcription error:", error);
+  }
+}
+
+async function getAIResponse(session: any, userMessage: string) {
+  try {
+    console.log("🤖 Getting AI response...");
+
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'xi-api-key': elevenLabsKey,
+        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        text: text,
-        model_id: 'eleven_monolingual_v1',
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.5,
-        },
+        model: 'openai/gpt-4o-mini',
+        messages: session.conversationHistory,
+        temperature: 0.7,
+        max_tokens: 150,
       }),
+    });
+
+    const data = await response.json();
+    const aiResponse = data.choices[0]?.message?.content;
+
+    if (aiResponse) {
+      console.log(`💬 AI: "${aiResponse}"`);
+
+      session.conversationHistory.push({ role: 'assistant', content: aiResponse });
+      session.transcript.push({ speaker: 'assistant', text: aiResponse, timestamp: new Date() });
+
+      await speakToCall(session, aiResponse);
     }
-  );
-
-  if (!response.ok) {
-    throw new Error(`ElevenLabs failed: ${response.statusText}`);
+  } catch (error) {
+    console.error("❌ AI error:", error);
   }
-
-  const audioBuffer = await response.arrayBuffer();
-  return new Uint8Array(audioBuffer);
 }
 
-/**
- * Convert audio to PCM format for FreeSWITCH
- */
-async function convertToPCM(audioData: Uint8Array, targetSampleRate: number): Promise<Uint8Array> {
-  // ElevenLabs returns MP3, need to convert to PCM
-  // For now, return as-is (you may need ffmpeg or similar for conversion)
-  // TODO: Implement MP3 → PCM conversion if needed
-  return audioData;
+// G.711 µ-law encoding (SAME AS TWILIO!)
+function pcmToMulaw(pcm: number): number {
+  const MULAW_MAX = 0x1FFF;
+  const MULAW_BIAS = 33;
+
+  const sign = (pcm < 0) ? 0x80 : 0x00;
+  let magnitude = Math.abs(pcm);
+
+  if (magnitude > MULAW_MAX) magnitude = MULAW_MAX;
+  magnitude += MULAW_BIAS;
+
+  let exponent = 7;
+  for (let mask = 0x4000; (magnitude & mask) === 0 && exponent > 0; exponent--, mask >>= 1);
+
+  const mantissa = (magnitude >> (exponent + 3)) & 0x0F;
+
+  return (~(sign | (exponent << 4) | mantissa)) & 0xFF;
 }
 
-/**
- * Log call interaction to database
- */
-async function logCallInteraction(
-  callId: string,
-  transcript: string,
-  aiResponse: string
-): Promise<void> {
+async function speakToCall(session: any, text: string) {
   try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    session.isSpeaking = true;
+
+    console.log(`🔊 Speaking: "${text}"`);
+
+    // Get PCM from ElevenLabs (SAME AS TWILIO!)
+    const response = await fetch(
+      `https://api.elevenlabs.io/v1/text-to-speech/${session.voiceId}?output_format=pcm_24000`,
+      {
+        method: 'POST',
+        headers: {
+          'xi-api-key': ELEVENLABS_API_KEY || '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          text,
+          model_id: 'eleven_flash_v2_5',
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 1.0,
+            style: 0.0,
+            use_speaker_boost: true,
+          },
+        }),
+      }
     );
 
-    await supabase.from('call_logs').insert({
-      call_id: callId,
-      transcript: transcript,
-      ai_response: aiResponse,
-      timestamp: new Date().toISOString(),
-    });
+    const pcmBuffer = await response.arrayBuffer();
+    const pcm24k = new Int16Array(pcmBuffer);
+
+    // Downsample to 8kHz + convert to µ-law (SAME AS TWILIO!)
+    const audioArray = new Uint8Array(Math.floor(pcm24k.length / 3));
+    for (let i = 0; i < audioArray.length; i++) {
+      audioArray[i] = pcmToMulaw(pcm24k[i * 3]);
+    }
+
+    console.log(`📦 Sending ${audioArray.length} bytes of audio...`);
+
+    // Send audio via WebSocket (SAME AS TWILIO!)
+    // mod_audio_stream expects raw µ-law bytes
+    if (session.socket.readyState === WebSocket.OPEN) {
+      session.socket.send(audioArray);
+      console.log("✅ Audio sent to FreeSWITCH!");
+    }
+
+    session.isSpeaking = false;
   } catch (error) {
-    console.error('Failed to log interaction:', error);
+    console.error("❌ TTS error:", error);
+    session.isSpeaking = false;
   }
 }
 
-/**
- * Originate call via FreeSWITCH ESL
- * Connects to FreeSWITCH Event Socket Layer and originates call
- */
-async function originateCallViaESL(params: {
-  phoneNumber: string;
-  extension: string;
-  variables: Record<string, string>;
-}): Promise<{ success: boolean; callId?: string; error?: string }> {
-  const { phoneNumber, extension, variables } = params;
-
-  const FREESWITCH_HOST = Deno.env.get('FREESWITCH_HOST') || '159.223.45.224';
-  const FREESWITCH_ESL_PORT = parseInt(Deno.env.get('FREESWITCH_ESL_PORT') || '8021');
-  const FREESWITCH_ESL_PASSWORD = Deno.env.get('FREESWITCH_ESL_PASSWORD') || 'ClueCon';
-
-  let conn: Deno.Conn | null = null;
-
-  try {
-    // Connect to FreeSWITCH ESL
-    conn = await Deno.connect({
-      hostname: FREESWITCH_HOST,
-      port: FREESWITCH_ESL_PORT,
-    });
-
-    console.log(`✅ Connected to FreeSWITCH ESL at ${FREESWITCH_HOST}:${FREESWITCH_ESL_PORT}`);
-
-    // Read initial greeting
-    await readESLResponse(conn);
-
-    // Authenticate
-    await sendESLCommand(conn, `auth ${FREESWITCH_ESL_PASSWORD}`);
-    const authResponse = await readESLResponse(conn);
-
-    if (!authResponse.includes('+OK')) {
-      throw new Error('ESL authentication failed');
-    }
-
-    console.log('✅ ESL authenticated');
-
-    // Clean phone number
-    const cleanNumber = phoneNumber.replace(/\D/g, '');
-
-    // Build channel variables
-    const varString = Object.entries(variables)
-      .map(([key, value]) => `${key}='${value}'`)
-      .join(',');
-
-    // Originate and park - we'll handle the conversation via ESL commands after answer
-    const originateCmd = `api originate {${varString},origination_caller_id_number=${cleanNumber}}sofia/gateway/external::1360d030-6e0c-4617-83e0-8d80969010cf/${cleanNumber} &park()`;
-
-    console.log(`📞 Originating: ${originateCmd}`);
-
-    await sendESLCommand(conn, originateCmd);
-    const response = await readESLResponse(conn);
-
-    console.log(`📋 Response: ${response}`);
-
-    // api originate returns +OK UUID on success
-    // Extract UUID - can be in format "+OK <uuid>" or just the uuid
-    let callId = '';
-
-    if (response.includes('+OK')) {
-      // Try to extract UUID from response
-      const uuidMatch = response.match(/\+OK\s+([a-f0-9-]+)/i) || response.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-      callId = uuidMatch ? uuidMatch[1] : `call_${Date.now()}`;
-
-      console.log(`✅ Call originated successfully: ${callId}`);
-
-      // Start AI conversation handler in background
-      handleAIConversation(callId, variables).catch(err => {
-        console.error(`❌ AI conversation error for ${callId}:`, err);
-      });
-
-      return {
-        success: true,
-        callId: callId,
-      };
-    } else if (response.includes('-ERR')) {
-      const errorMatch = response.match(/-ERR\s+(.+)/);
-      const errorMsg = errorMatch ? errorMatch[1].trim() : 'Unknown error';
-      console.error(`❌ Call origination failed: ${errorMsg}`);
-      return {
-        success: false,
-        error: errorMsg,
-      };
-    } else {
-      // Check if there's a UUID even without +OK
-      const uuidMatch = response.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-      if (uuidMatch) {
-        callId = uuidMatch[1];
-        console.log(`✅ Call originated (UUID found): ${callId}`);
-        return {
-          success: true,
-          callId: callId,
-        };
-      }
-
-      console.error(`❌ Unexpected response: ${response}`);
-      return {
-        success: false,
-        error: 'Unexpected response from FreeSWITCH',
-      };
-    }
-  } catch (error) {
-    console.error('❌ ESL error:', error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
-  } finally {
-    // Close connection
-    if (conn) {
-      try {
-        conn.close();
-      } catch (e) {
-        // Ignore close errors
-      }
-    }
-  }
-}
-
-/**
- * Handle AI conversation for a call
- * Uses record + playback loop to simulate conversation
- */
-async function handleAIConversation(callId: string, variables: Record<string, string>): Promise<void> {
-  const FREESWITCH_HOST = Deno.env.get('FREESWITCH_HOST') || '159.223.45.224';
-  const FREESWITCH_ESL_PORT = parseInt(Deno.env.get('FREESWITCH_ESL_PORT') || '8021');
-  const FREESWITCH_ESL_PASSWORD = Deno.env.get('FREESWITCH_ESL_PASSWORD') || 'ClueCon';
-
-  let conn: Deno.Conn | null = null;
-
-  try {
-    // Connect to FreeSWITCH ESL
-    conn = await Deno.connect({
-      hostname: FREESWITCH_HOST,
-      port: FREESWITCH_ESL_PORT,
-    });
-
-    // Authenticate
-    await readESLResponse(conn);
-    await sendESLCommand(conn, `auth ${FREESWITCH_ESL_PASSWORD}`);
-    await readESLResponse(conn);
-
-    console.log(`🤖 Starting AI conversation for call ${callId}`);
-
-    // Wait for call to be answered
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
-    // Play greeting with ElevenLabs
-    const greetingText = "Hello! This is an AI assistant. How can I help you today?";
-    await playAIResponse(conn, callId, greetingText);
-
-    // Conversation loop (simplified for now)
-    for (let i = 0; i < 5; i++) {
-      // Record customer speech (3 seconds max)
-      console.log(`🎤 Recording customer speech... (turn ${i + 1})`);
-      const recordFile = `/tmp/customer_${callId}_${i}.wav`;
-
-      await sendESLCommand(conn, `api uuid_record ${callId} start ${recordFile} 3`);
-      await readESLResponse(conn);
-
-      // Wait for recording
-      await new Promise(resolve => setTimeout(resolve, 4000));
-
-      // Stop recording
-      await sendESLCommand(conn, `api uuid_record ${callId} stop ${recordFile}`);
-      await readESLResponse(conn);
-
-      // Process audio (STT → GPT → TTS → Play)
-      // TODO: Implement full processing
-      console.log(`✅ Turn ${i + 1} completed`);
-    }
-
-    console.log(`✅ AI conversation completed for ${callId}`);
-
-  } catch (error) {
-    console.error(`❌ Error in AI conversation:`, error);
-  } finally {
-    if (conn) {
-      try {
-        conn.close();
-      } catch (e) {
-        // Ignore
-      }
-    }
-  }
-}
-
-/**
- * Play AI response using ElevenLabs TTS
- */
-async function playAIResponse(conn: Deno.Conn, callId: string, text: string): Promise<void> {
-  try {
-    console.log(`🔊 Generating speech: "${text}"`);
-
-    // Generate speech with ElevenLabs
-    const audioData = await textToSpeechElevenLabs(text);
-
-    // Store in cache with unique ID
-    const audioId = `${callId}_${Date.now()}`;
-    audioCache.set(audioId, audioData);
-
-    // Build audio URL using shout:// protocol for mod_shout
-    const audioUrl = `shout://sifucall.deno.dev/audio-file/${audioId}`;
-
-    console.log(`🎵 Audio URL: ${audioUrl}`);
-
-    // Play the audio via HTTP stream using mod_shout
-    // Use uuid_displace instead of uuid_broadcast for parked calls
-    await sendESLCommand(conn, `api uuid_displace ${callId} start ${audioUrl} 0 mux`);
-    const response = await readESLResponse(conn);
-
-    console.log(`📤 Playing AI response to customer: ${response.trim()}`);
-
-    // Wait for playback to finish (estimate based on text length)
-    const estimatedDuration = Math.max(3000, text.length * 50); // ~50ms per character
-    await new Promise(resolve => setTimeout(resolve, estimatedDuration));
-
-    // Clean up audio from cache after playback
-    audioCache.delete(audioId);
-
-  } catch (error) {
-    console.error(`❌ Error playing AI response:`, error);
-  }
-}
-
-/**
- * Send command to ESL
- */
+// ESL helper functions
 async function sendESLCommand(conn: Deno.Conn, command: string): Promise<void> {
   const encoder = new TextEncoder();
-  const data = encoder.encode(command + '\n\n');
-  await conn.write(data);
+  await conn.write(encoder.encode(command + '\n\n'));
 }
 
-/**
- * Read response from ESL
- */
 async function readESLResponse(conn: Deno.Conn): Promise<string> {
   const decoder = new TextDecoder();
   const buffer = new Uint8Array(4096);
-
   let response = '';
-  let bytesRead = 0;
 
-  // Read until we get double newline (end of ESL message)
   while (true) {
-    bytesRead = await conn.read(buffer) || 0;
+    const bytesRead = await conn.read(buffer) || 0;
     if (bytesRead === 0) break;
 
     const chunk = decoder.decode(buffer.subarray(0, bytesRead));
     response += chunk;
 
-    // ESL messages end with \n\n
     if (response.includes('\n\n')) {
-      break;
+      const contentLengthMatch = response.match(/Content-Length:\s*(\d+)/i);
+      if (contentLengthMatch) {
+        const contentLength = parseInt(contentLengthMatch[1]);
+        const headerEnd = response.indexOf('\n\n') + 2;
+        const bodyLength = response.length - headerEnd;
+        if (bodyLength >= contentLength) break;
+      } else {
+        break;
+      }
     }
 
-    // Timeout after 5 seconds
-    if (response.length > 100000) {
-      break;
-    }
+    if (response.length > 100000) break;
   }
 
   return response;

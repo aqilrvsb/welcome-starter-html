@@ -214,17 +214,17 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
       return await response.json();
     },
     onSuccess: (response) => {
-      toast.success(`🎉 Kempen batch call berjaya dimulakan! 
-        ✅ Berjaya: ${response.summary.successful_calls}, 
-        ❌ Gagal: ${response.summary.failed_calls}`);
-      
+      toast.success(`🎉 Kempen batch call berjaya dimulakan!
+        ✅ Berjaya: ${response.summary?.successful || 0},
+        ❌ Gagal: ${response.summary?.failed || 0}`);
+
       // Save this campaign for repeat functionality
       setLastCampaign({
         campaignName: form.getValues('campaignName'),
         promptId: form.getValues('promptId'),
         phoneNumbers: validNumbers.join('\n')
       });
-      
+
       form.reset();
       setValidNumbers([]);
       setInvalidNumbers([]);
