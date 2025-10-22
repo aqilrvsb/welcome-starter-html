@@ -200,7 +200,7 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
   await sendESLCommand(conn, `auth ${FREESWITCH_ESL_PASSWORD}`);
   await readESLResponse(conn);
 
-  // Build originate command with mod_audio_stream
+  // Build originate command - first originate and park, then start audio_stream
   const vars = [
     `user_id=${userId}`,
     `campaign_id=${campaignId}`,
@@ -208,18 +208,36 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
     `origination_caller_id_number=${phoneNumber}`,
   ].join(',');
 
-  // Use mod_audio_stream to stream audio to WebSocket
-  const originateCmd = `api originate {${vars}}sofia/gateway/external::1360d030-6e0c-4617-83e0-8d80969010cf/${phoneNumber} &audio_stream(${websocketUrl},L16)`;
+  // Originate and park the call first
+  const originateCmd = `api originate {${vars}}sofia/gateway/external::1360d030-6e0c-4617-83e0-8d80969010cf/${phoneNumber} &park()`;
 
   console.log(`📞 Originating: ${originateCmd}`);
 
   await sendESLCommand(conn, originateCmd);
   const response = await readESLResponse(conn);
 
-  console.log(`📋 Response: ${response}`);
+  console.log(`📋 Originate Response: ${response}`);
 
   const uuidMatch = response.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/i);
-  const callId = uuidMatch ? uuidMatch[1] : `call_${Date.now()}`;
+
+  if (!uuidMatch) {
+    conn.close();
+    throw new Error('Failed to extract call UUID from response');
+  }
+
+  const callId = uuidMatch[1];
+  console.log(`✅ Call UUID: ${callId}`);
+
+  // Now start audio streaming on the parked call
+  // uuid_audio_stream <uuid> start <wss-url> [mono|mixed|stereo] [8000|16000]
+  const audioStreamCmd = `api uuid_audio_stream ${callId} start ${websocketUrl} mono 8000`;
+
+  console.log(`🎤 Starting audio stream: ${audioStreamCmd}`);
+
+  await sendESLCommand(conn, audioStreamCmd);
+  const streamResponse = await readESLResponse(conn);
+
+  console.log(`📋 Audio stream Response: ${streamResponse}`);
 
   conn.close();
 
