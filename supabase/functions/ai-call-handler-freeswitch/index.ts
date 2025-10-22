@@ -309,14 +309,17 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
     audioBuffer: [],
     isProcessingAudio: false,
     isSpeaking: false,
+    isCallAnswered: false, // Track if customer has answered
+    hasGreeted: false, // Track if we've sent first message
     costs: { azure_stt: 0, llm: 0, tts: 0 },
     audioFileCounter: 0, // Track temp file numbers for playback
   };
 
   activeCalls.set(callId, session);
 
-  // Send first message
-  await speakToCall(session, firstMessage);
+  // Don't send first message yet - wait for customer to answer
+  // We'll detect answer when we receive first audio packet
+  console.log("⏳ Waiting for customer to answer...");
 }
 
 async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
@@ -330,6 +333,17 @@ async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
   }
 
   if (!session) return;
+
+  // First audio packet means call is answered!
+  if (!session.isCallAnswered) {
+    session.isCallAnswered = true;
+    console.log("📞 Customer answered! Sending greeting...");
+
+    // Send the first message now that customer can hear us
+    await speakToCall(session, session.firstMessage);
+    session.hasGreeted = true;
+    return; // Don't process this first chunk
+  }
 
   // CRITICAL: Don't process audio while AI is speaking to avoid interruptions
   if (session.isSpeaking || session.isProcessingAudio) {
