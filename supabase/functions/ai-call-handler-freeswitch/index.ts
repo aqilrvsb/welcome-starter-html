@@ -287,11 +287,17 @@ async function monitorCallAnswerEvent(callId: string, websocketUrl: string) {
 
       // Find the session and trigger greeting
       const session = activeCalls.get(callId);
+      console.log(`🔍 Debug: session=${!!session}, hasGreeted=${session?.hasGreeted}, firstMessage="${session?.firstMessage}"`);
+
       if (session && !session.hasGreeted) {
         session.isCallAnswered = true;
         console.log(`📞 Triggering greeting for ${callId}...`);
         await speakToCall(session, session.firstMessage);
         session.hasGreeted = true;
+      } else if (!session) {
+        console.error(`❌ Session ${callId} not found in activeCalls!`);
+      } else if (session.hasGreeted) {
+        console.log(`⚠️ Session ${callId} already greeted, skipping`);
       }
     }
 
