@@ -130,7 +130,7 @@ export function PromptsForm({ prompt, onClose, onSuccess }: PromptsFormProps) {
                     />
                   </FormControl>
                   <div className="text-xs text-muted-foreground mt-1">
-                    <strong>Auto-replaced variables:</strong> {{`{{name}}`}} (contact name), {{`{{phone}}`}} (phone number), {{`{{product}}`}} (product), {{`{{info}}`}} (info)
+                    <strong>Auto-replaced variables:</strong> {"{{name}}"} (contact name), {"{{phone}}"} (phone number), {"{{product}}"} (product), {"{{info}}"} (info)
                   </div>
                   <FormMessage />
                 </FormItem>
