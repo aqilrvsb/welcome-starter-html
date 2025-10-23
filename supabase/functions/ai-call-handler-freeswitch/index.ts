@@ -285,8 +285,19 @@ async function monitorCallAnswerEvent(callId: string, websocketUrl: string) {
     if (answerEvent.includes('CHANNEL_ANSWER')) {
       console.log(`✅ Call ${callId} ANSWERED by customer!`);
 
-      // Find the session and trigger greeting
-      const session = activeCalls.get(callId);
+      // Wait for session to be created (race condition fix)
+      // WebSocket might be slower than ESL event
+      let session = activeCalls.get(callId);
+      let retries = 0;
+      const maxRetries = 30; // Wait up to 3 seconds (30 x 100ms)
+
+      while (!session && retries < maxRetries) {
+        console.log(`⏳ Waiting for session ${callId} to be created... (${retries + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+        session = activeCalls.get(callId);
+        retries++;
+      }
+
       console.log(`🔍 Debug: session=${!!session}, hasGreeted=${session?.hasGreeted}, firstMessage="${session?.firstMessage}"`);
 
       if (session && !session.hasGreeted) {
@@ -295,7 +306,7 @@ async function monitorCallAnswerEvent(callId: string, websocketUrl: string) {
         await speakToCall(session, session.firstMessage);
         session.hasGreeted = true;
       } else if (!session) {
-        console.error(`❌ Session ${callId} not found in activeCalls!`);
+        console.error(`❌ Session ${callId} not found in activeCalls after ${maxRetries} retries!`);
       } else if (session.hasGreeted) {
         console.log(`⚠️ Session ${callId} already greeted, skipping`);
       }
