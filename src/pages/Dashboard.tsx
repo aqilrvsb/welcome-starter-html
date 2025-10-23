@@ -1,12 +1,9 @@
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
-  TrendingUp,
   CheckCircle,
   AlertCircle
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { StatsCards } from '@/components/analytics/StatsCards';
@@ -251,53 +248,6 @@ export default function Dashboard() {
             />
           </div>
 
-          {/* Getting Started (show only if no campaigns) */}
-          {(!filteredCampaigns || filteredCampaigns.length === 0) && !campaignsLoading && (
-            <div className="mt-8">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <TrendingUp className="h-5 w-5" />
-                    <span>Get Started</span>
-                  </CardTitle>
-                  <CardDescription>
-                    Set up your first voice AI campaign in minutes
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="space-y-4">
-                      <h4 className="font-medium">1. Configure Your Settings</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Set up your API keys and phone configuration to enable voice calling.
-                      </p>
-                      <Button variant="outline" asChild>
-                        <Link to="/settings">Configure Settings</Link>
-                      </Button>
-                    </div>
-                    <div className="space-y-4">
-                      <h4 className="font-medium">2. Create Prompt</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Create conversation script for your AI assistant.
-                      </p>
-                      <Button variant="outline" asChild>
-                        <Link to="/prompts">Create Prompt</Link>
-                      </Button>
-                    </div>
-                    <div className="space-y-4">
-                      <h4 className="font-medium">3. Start Call</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Launch your first batch calling campaign.
-                      </p>
-                      <Button asChild>
-                        <Link to="/contacts">Start Call</Link>
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
     </div>
     </>
   );
