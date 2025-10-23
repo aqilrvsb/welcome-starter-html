@@ -169,24 +169,30 @@ async function handleBatchCall(req: Request): Promise<Response> {
 
     if (!prompt) throw new Error('Prompt not found');
 
-    // Validate campaign name - use default if blank
-    const validCampaignName = campaignName?.trim() || `Campaign ${new Date().toISOString().split('T')[0]}`;
+    // 🎯 Campaign is OPTIONAL - only create if name is provided
+    let campaign = null;
+    if (campaignName?.trim()) {
+      const { data: createdCampaign, error: campaignError } = await supabaseAdmin
+        .from('campaigns')
+        .insert({
+          user_id: userId,
+          campaign_name: campaignName.trim(),
+          prompt_id: prompt.id,
+          status: 'in_progress',
+          total_numbers: phoneNumbers.length,
+        })
+        .select()
+        .single();
 
-    // Create campaign
-    const { data: campaign, error: campaignError } = await supabaseAdmin
-      .from('campaigns')
-      .insert({
-        user_id: userId,
-        campaign_name: validCampaignName,
-        prompt_id: prompt.id,
-        status: 'in_progress',
-        total_numbers: phoneNumbers.length,
-      })
-      .select()
-      .single();
+      if (campaignError) {
+        console.error('❌ Failed to create campaign:', campaignError);
+        throw new Error('Failed to create campaign: ' + campaignError.message);
+      }
 
-    if (campaignError || !campaign) {
-      throw new Error('Failed to create campaign: ' + (campaignError?.message || 'Unknown error'));
+      campaign = createdCampaign;
+      console.log(`✅ Campaign created: ${campaign.campaign_name} (ID: ${campaign.id})`);
+    } else {
+      console.log(`⏭️  No campaign name provided - creating call logs without campaign`);
     }
 
     const WEBSOCKET_URL = `wss://${req.headers.get('host')}`;
@@ -204,7 +210,7 @@ async function handleBatchCall(req: Request): Promise<Response> {
         const callId = await originateCallWithAudioStream({
           phoneNumber: cleanNumber,
           userId,
-          campaignId: campaign.id,
+          campaignId: campaign?.id || null, // Can be null if no campaign
           promptId: prompt.id,
           websocketUrl: WEBSOCKET_URL,
         });
@@ -224,7 +230,7 @@ async function handleBatchCall(req: Request): Promise<Response> {
           .maybeSingle();
 
         const { error: insertError } = await supabaseAdmin.from('call_logs').insert({
-          campaign_id: campaign.id,
+          campaign_id: campaign?.id || null, // Optional - can be null
           user_id: userId,
           call_id: callId,
           phone_number: cleanNumber, // Store normalized number
@@ -250,18 +256,21 @@ async function handleBatchCall(req: Request): Promise<Response> {
     const successCount = results.filter(r => r.success).length;
     const failedCount = results.filter(r => !r.success).length;
 
-    await supabaseAdmin
-      .from('campaigns')
-      .update({
-        status: 'completed',
-        successful_calls: successCount,
-        failed_calls: failedCount
-      })
-      .eq('id', campaign.id);
+    // Update campaign stats only if campaign was created
+    if (campaign) {
+      await supabaseAdmin
+        .from('campaigns')
+        .update({
+          status: 'completed',
+          successful_calls: successCount,
+          failed_calls: failedCount
+        })
+        .eq('id', campaign.id);
+    }
 
     return new Response(JSON.stringify({
       success: true,
-      campaign_id: campaign.id,
+      campaign_id: campaign?.id || null,
       summary: {
         total: phoneNumbers.length,
         successful: successCount,
