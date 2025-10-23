@@ -450,6 +450,23 @@ async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
     }
     session.audioBuffer = [];
 
+    // PRE-CHECK: Calculate average RMS of entire buffer to skip obvious silence
+    // This saves 200-300ms Azure STT call for silent chunks
+    const samples = new Int16Array(combined.buffer, combined.byteOffset, combined.length / 2);
+    let sumSquares = 0;
+    for (let i = 0; i < samples.length; i++) {
+      sumSquares += samples[i] * samples[i];
+    }
+    const avgRms = Math.sqrt(sumSquares / samples.length);
+
+    if (avgRms < 500) {
+      // Buffer is pure silence - skip Azure STT call entirely
+      console.log(`⏭️  Skipping transcription: buffer is silence (RMS: ${avgRms.toFixed(0)})`);
+      session.isProcessingAudio = false;
+      return;
+    }
+
+    console.log(`🎤 Buffer has audio content (RMS: ${avgRms.toFixed(0)}), transcribing...`);
     await transcribeAudio(session, combined);
     session.isProcessingAudio = false;
   }
@@ -541,54 +558,11 @@ async function transcribeAudio(session: any, audioBytes: Uint8Array) {
   }
 }
 
-/**
- * Get random acknowledgment filler word to play while AI is thinking
- * Makes conversation feel more natural and human-like
- */
-function getRandomFillerWord(): string {
-  const fillers = [
-    "Ooo",
-    "Faham cik",
-    "Okay baik",
-    "Baiklah cik",
-    "Yerr cik",
-    "Ha, okay",
-    "Ooo macam tu",
-    "Baik, baik",
-    "Hmm faham",
-    "Okay cik",
-  ];
-  return fillers[Math.floor(Math.random() * fillers.length)];
-}
-
 async function getAIResponse(session: any, userMessage: string) {
   try {
     console.log("🤖 Getting AI response...");
 
-    // INSTANT FEEDBACK: Play filler word immediately while AI processes
-    const fillerWord = getRandomFillerWord();
-    console.log(`💬 Filler: "${fillerWord}" (buying time while AI thinks...)`);
-
-    // Start playing filler word (don't await - let it play in background)
-    const fillerPromise = speakToCall(session, fillerWord, true); // true = isFiller
-
-    // Add acknowledgment to conversation history so AI knows we already responded
-    // This prevents AI from repeating acknowledgments like "Ooo", "Baik" etc.
-    session.conversationHistory.push({
-      role: 'assistant',
-      content: `[Already acknowledged with: "${fillerWord}"]`
-    });
-
-    // Inject instruction to AI: continue naturally after acknowledgment
-    const messagesWithInstruction = [
-      ...session.conversationHistory,
-      {
-        role: 'system',
-        content: `You just said "${fillerWord}" as acknowledgment. Now continue the conversation naturally without repeating acknowledgments. Jump straight to your main response.`
-      }
-    ];
-
-    // While filler is playing, get AI response in parallel
+    // Direct call to GPT - no filler words for maximum speed
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -597,7 +571,7 @@ async function getAIResponse(session: any, userMessage: string) {
       },
       body: JSON.stringify({
         model: 'openai/gpt-4o-mini',
-        messages: messagesWithInstruction,
+        messages: session.conversationHistory,
         temperature: 0.7,
         max_tokens: 150,
       }),
@@ -609,29 +583,20 @@ async function getAIResponse(session: any, userMessage: string) {
     if (aiResponse) {
       console.log(`💬 AI: "${aiResponse}"`);
 
-      // Add the actual AI response to history (not the instruction)
       session.conversationHistory.push({ role: 'assistant', content: aiResponse });
-      session.transcript.push({ speaker: 'assistant', text: `${fillerWord} ... ${aiResponse}`, timestamp: new Date() });
+      session.transcript.push({ speaker: 'assistant', text: aiResponse, timestamp: new Date() });
 
-      // Wait for filler to finish before speaking main response
-      await fillerPromise;
-
-      await speakToCall(session, aiResponse, false); // false = not filler
+      await speakToCall(session, aiResponse);
     }
   } catch (error) {
     console.error("❌ AI error:", error);
   }
 }
 
-async function speakToCall(session: any, text: string, isFiller: boolean = false) {
+async function speakToCall(session: any, text: string) {
   try {
     session.isSpeaking = true;
-
-    if (isFiller) {
-      console.log(`🎤 Filler word: "${text}"`);
-    } else {
-      console.log(`🔊 Speaking: "${text}"`);
-    }
+    console.log(`🔊 Speaking: "${text}"`);
 
     // Get PCM from ElevenLabs at 16kHz (will downsample to 8kHz)
     const response = await fetch(
