@@ -608,6 +608,7 @@ async function speakToCall(session: any, text: string) {
 
       const audioChunks: Uint8Array[] = [];
       let hasStartedPlaying = false;
+      let hasPlayedAudio = false; // Track if we already played audio to prevent duplicates
 
       ws.onopen = () => {
         console.log(`🌊 ElevenLabs streaming connected`);
@@ -658,7 +659,8 @@ async function speakToCall(session: any, text: string) {
               console.log(`✅ ElevenLabs streaming complete - received ${audioChunks.length} chunks`);
 
               // Play ALL accumulated chunks now that streaming is complete
-              if (audioChunks.length > 0) {
+              if (audioChunks.length > 0 && !hasPlayedAudio) {
+                hasPlayedAudio = true; // Mark as played to prevent duplicate in onclose
                 await playAudioChunks(session, audioChunks);
               }
 
@@ -680,12 +682,16 @@ async function speakToCall(session: any, text: string) {
       };
 
       ws.onclose = () => {
-        // Fallback: if we have chunks but isFinal wasn't received
-        if (audioChunks.length > 0) {
-          console.log(`⚠️  WebSocket closed, playing ${audioChunks.length} accumulated chunks`);
+        // Fallback: if we have chunks but isFinal wasn't received AND we haven't played yet
+        if (audioChunks.length > 0 && !hasPlayedAudio) {
+          console.log(`⚠️  WebSocket closed without isFinal, playing ${audioChunks.length} accumulated chunks`);
+          hasPlayedAudio = true;
           playAudioChunks(session, audioChunks)
             .then(resolve)
             .catch(reject);
+        } else if (hasPlayedAudio) {
+          console.log(`✅ WebSocket closed (audio already played)`);
+          resolve();
         } else {
           resolve();
         }
