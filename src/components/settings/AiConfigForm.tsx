@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { ApiKeysForm } from "@/components/api-keys/ApiKeysForm";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-// Schema for phone configuration - FreeSWITCH + AlienVOIP SIP
+// Schema for phone configuration - FreeSWITCH + SIP Trunk
 const phoneConfigSchema = z.object({
   freeswitch_url: z.string().min(1, 'FreeSWITCH URL is required'),
   mikopbx_api_key: z.string().optional(),
@@ -392,8 +392,9 @@ export function AiConfigForm() {
             <Alert className="border-blue-200 bg-blue-50">
               <Info className="h-4 w-4 text-blue-600" />
               <AlertDescription className="text-sm text-blue-800">
-                <strong>Cost Savings:</strong> AlienVOIP is ~70% cheaper than Twilio! Only RM0.006-0.01/min instead of RM0.03/min.
-                Configure your AlienVOIP SIP credentials below.
+                <strong>Free Trial:</strong> Get 10 minutes free (one-time only) to test the system.
+                <br />
+                <strong>Pro Account:</strong> Only RM0.15 per minute - pay as you go!
               </AlertDescription>
             </Alert>
 
@@ -439,7 +440,7 @@ export function AiConfigForm() {
                 <div className="space-y-4">
                   <h4 className="font-medium flex items-center gap-2">
                     <Phone className="h-4 w-4" />
-                    AlienVOIP SIP Trunk
+                    SIP Trunk Configuration
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <FormField
@@ -567,7 +568,7 @@ export function AiConfigForm() {
                       Saving...
                     </>
                   ) : (
-                    "Save AlienVOIP Configuration"
+                    "Save Phone Configuration"
                   )}
                 </Button>
               </form>
