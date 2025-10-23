@@ -162,6 +162,54 @@ export class FreeSwitchESLClient {
   }
 
   /**
+   * Hangup a call by UUID
+   */
+  async hangupCall(callId: string): Promise<boolean> {
+    try {
+      const conn = await Deno.connect({
+        hostname: this.host,
+        port: this.port,
+      });
+
+      console.log('✅ Connected to FreeSWITCH ESL for hangup');
+
+      // Wait for initial greeting
+      await this.readResponse(conn);
+
+      // Authenticate
+      await this.sendCommand(conn, `auth ${this.password}`);
+      const authResponse = await this.readResponse(conn);
+
+      if (!authResponse.includes('+OK')) {
+        throw new Error('ESL authentication failed');
+      }
+
+      console.log('✅ ESL authenticated for hangup');
+
+      // Send hangup command
+      const hangupCmd = `api uuid_kill ${callId}`;
+      console.log('📞 Hanging up call:', hangupCmd);
+
+      await this.sendCommand(conn, hangupCmd);
+      const response = await this.readResponse(conn);
+
+      // Close connection
+      conn.close();
+
+      if (response.includes('+OK')) {
+        console.log('✅ Call hungup successfully:', callId);
+        return true;
+      } else {
+        console.error('❌ Call hangup failed:', response);
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ ESL hangup error:', error);
+      return false;
+    }
+  }
+
+  /**
    * Test ESL connection
    */
   async testConnection(): Promise<boolean> {

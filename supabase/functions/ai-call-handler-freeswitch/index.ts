@@ -758,6 +758,64 @@ async function getAIResponse(session: any, userMessage: string) {
         }
       }
 
+      // 📝 DETAILS EXTRACTION: Check if AI response contains %% wrapped content
+      const detailsMatch = aiResponse.match(/%%(.+?)%%/s);
+      if (detailsMatch) {
+        const details = detailsMatch[1].trim();
+        console.log(`📝 Extracted details: "${details}"`);
+
+        // Save details to database
+        try {
+          const { error: detailsError } = await supabaseAdmin
+            .from('call_logs')
+            .update({ details: details })
+            .eq('call_id', session.callId);
+
+          if (detailsError) {
+            console.error(`❌ Failed to save details to database:`, detailsError);
+          } else {
+            console.log(`✅ Details saved to database`);
+          }
+        } catch (dbError) {
+          console.error(`❌ Database error saving details:`, dbError);
+        }
+      }
+
+      // 🛑 END CALL DETECTION: Check if AI response contains end_call command
+      if (aiResponse.toLowerCase().includes('end_call')) {
+        console.log(`🛑 end_call detected - terminating call after speaking`);
+
+        // Speak the response first (without the end_call command)
+        const cleanResponse = aiResponse.replace(/end_call/gi, '').trim();
+        if (cleanResponse) {
+          await speakToCall(session, cleanResponse);
+        }
+
+        // Wait a bit for the speech to finish
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Hangup the call
+        try {
+          const { FreeSwitchESLClient } = await import('../_shared/freeswitch-esl-client.ts');
+          const eslClient = new FreeSwitchESLClient(
+            FREESWITCH_HOST,
+            FREESWITCH_ESL_PORT,
+            FREESWITCH_ESL_PASSWORD
+          );
+
+          const hungup = await eslClient.hangupCall(session.callId);
+          if (hungup) {
+            console.log(`✅ Call terminated successfully via end_call`);
+          } else {
+            console.error(`❌ Failed to terminate call via end_call`);
+          }
+        } catch (hangupError) {
+          console.error(`❌ Error terminating call:`, hangupError);
+        }
+
+        return; // Don't speak again
+      }
+
       await speakToCall(session, aiResponse);
     }
   } catch (error) {
