@@ -334,13 +334,18 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
 
   // Now start audio streaming on the parked call
   // uuid_audio_stream <uuid> start <wss-url> [mono|mixed|stereo] [8000|16000] [metadata]
-  // Build metadata JSON
-  const metadata = JSON.stringify({
+  // Build metadata JSON - only include campaign_id if it exists
+  const metadataObj: any = {
     call_id: callId,
     user_id: userId,
-    campaign_id: campaignId,
     prompt_id: promptId
-  });
+  };
+
+  if (campaignId) {
+    metadataObj.campaign_id = campaignId;
+  }
+
+  const metadata = JSON.stringify(metadataObj);
 
   const audioStreamCmd = `api uuid_audio_stream ${callId} start ${websocketUrl} mono 8000 ${metadata}`;
 
