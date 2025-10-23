@@ -133,7 +133,7 @@ export default function CreditsTopup() {
     );
   }
 
-  const estimatedMinutes = creditsBalance / 0.20; // $0.20 per minute
+  const estimatedMinutes = creditsBalance / 0.15; // RM0.15 per minute
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -165,7 +165,7 @@ export default function CreditsTopup() {
           <CardContent>
             <div className="text-2xl font-bold">{totalMinutesUsed.toFixed(1)} min</div>
             <p className="text-xs text-muted-foreground">
-              RM {(totalMinutesUsed * 0.20).toFixed(2)} spent
+              RM {(totalMinutesUsed * 0.15).toFixed(2)} spent
             </p>
           </CardContent>
         </Card>
@@ -176,7 +176,7 @@ export default function CreditsTopup() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">RM 0.20</div>
+            <div className="text-2xl font-bold">RM 0.15</div>
             <p className="text-xs text-muted-foreground">per minute</p>
           </CardContent>
         </Card>
@@ -187,7 +187,7 @@ export default function CreditsTopup() {
         <Info className="h-4 w-4 text-primary" />
         <AlertDescription>
           <div className="space-y-1">
-            <p className="font-medium">Pricing: RM 0.20 per minute</p>
+            <p className="font-medium">Pricing: RM 0.15 per minute</p>
             <p className="text-sm">
               This includes AI voice processing, speech recognition, and text-to-speech.
               Much cheaper than VAPI! 🎉
@@ -221,7 +221,7 @@ export default function CreditsTopup() {
                 >
                   <span className="text-lg font-bold">RM{amount}</span>
                   <span className="text-xs text-muted-foreground">
-                    ~{(amount / 0.20).toFixed(0)} min
+                    ~{(amount / 0.15).toFixed(0)} min
                   </span>
                 </Button>
               ))}
@@ -245,7 +245,7 @@ export default function CreditsTopup() {
             />
             {customAmount && parseFloat(customAmount) >= 10 && (
               <p className="text-sm text-muted-foreground mt-1">
-                ~{(parseFloat(customAmount) / 0.20).toFixed(0)} minutes
+                ~{(parseFloat(customAmount) / 0.15).toFixed(0)} minutes
               </p>
             )}
           </div>
