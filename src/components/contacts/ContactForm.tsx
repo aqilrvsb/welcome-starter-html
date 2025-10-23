@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
 const contactSchema = z.object({
@@ -16,13 +17,13 @@ const contactSchema = z.object({
       if (val && !val.startsWith('+')) {
         // Remove any leading zeros and non-digits for processing
         const cleanNumber = val.replace(/\D/g, '');
-        
+
         // If it starts with 60, assume it's already formatted without +
         if (cleanNumber.startsWith('60')) {
           return '+' + cleanNumber;
         }
         // If it's a Malaysian mobile number (starts with 1, 01, etc.)
-        else if (cleanNumber.startsWith('1') || cleanNumber.startsWith('01') || 
+        else if (cleanNumber.startsWith('1') || cleanNumber.startsWith('01') ||
                  cleanNumber.length >= 9 && cleanNumber.length <= 11) {
           // Remove leading zero if present
           const numberWithoutZero = cleanNumber.startsWith('0') ? cleanNumber.slice(1) : cleanNumber;
@@ -32,6 +33,7 @@ const contactSchema = z.object({
       return val;
     }),
   product: z.string().trim().max(100, "Product must be less than 100 characters").optional(),
+  info: z.string().trim().max(500, "Info must be less than 500 characters").optional(),
 });
 
 type ContactFormData = z.infer<typeof contactSchema>;
@@ -50,6 +52,7 @@ export function ContactForm({ userId, onSuccess }: ContactFormProps) {
       name: "",
       phoneNumber: "",
       product: "",
+      info: "",
     },
   });
 
@@ -68,6 +71,7 @@ export function ContactForm({ userId, onSuccess }: ContactFormProps) {
           name: data.name,
           phone_number: data.phoneNumber,
           product: data.product || null,
+          info: data.info || null,
         })
         .select()
         .single();
@@ -140,6 +144,24 @@ export function ContactForm({ userId, onSuccess }: ContactFormProps) {
               <FormLabel>Product (Optional)</FormLabel>
               <FormControl>
                 <Input placeholder="Enter product name" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="info"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Info (Optional)</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="Enter additional information or notes about this contact"
+                  className="min-h-[100px]"
+                  {...field}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Trash2, Search, Users, Edit2, Check, X } from "lucide-react";
@@ -16,6 +17,7 @@ const editContactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
   phone_number: z.string().trim().min(1, "Phone number is required").max(20, "Phone number must be less than 20 characters"),
   product: z.string().trim().max(100, "Product must be less than 100 characters").optional(),
+  info: z.string().trim().max(500, "Info must be less than 500 characters").optional(),
 });
 
 interface Contact {
@@ -23,6 +25,7 @@ interface Contact {
   name: string;
   phone_number: string;
   product?: string | null;
+  info?: string | null;
   created_at: string;
 }
 
@@ -47,7 +50,7 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
   const [productFilter, setProductFilter] = useState("");
   const [callStatusFilter, setCallStatusFilter] = useState<string>("all");
   const [editingContact, setEditingContact] = useState<string | null>(null);
-  const [editFormData, setEditFormData] = useState({ name: "", phone_number: "", product: "" });
+  const [editFormData, setEditFormData] = useState({ name: "", phone_number: "", product: "", info: "" });
   const [editErrors, setEditErrors] = useState<{ name?: string; phone_number?: string; product?: string }>({});
   const [contactStats, setContactStats] = useState<Map<string, ContactStats>>(new Map());
   const [contactToDelete, setContactToDelete] = useState<string | null>(null);
@@ -207,14 +210,14 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
   const confirmEdit = () => {
     if (!contactToEdit) return;
     setEditingContact(contactToEdit.id);
-    setEditFormData({ name: contactToEdit.name, phone_number: contactToEdit.phone_number, product: contactToEdit.product || "" });
+    setEditFormData({ name: contactToEdit.name, phone_number: contactToEdit.phone_number, product: contactToEdit.product || "", info: contactToEdit.info || "" });
     setEditErrors({});
     setContactToEdit(null);
   };
 
   const cancelEditing = () => {
     setEditingContact(null);
-    setEditFormData({ name: "", phone_number: "", product: "" });
+    setEditFormData({ name: "", phone_number: "", product: "", info: "" });
     setEditErrors({});
   };
 
@@ -240,6 +243,7 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
           name: validationResult.data.name,
           phone_number: validationResult.data.phone_number,
           product: validationResult.data.product || null,
+          info: validationResult.data.info || null,
         })
         .eq("id", contactId)
         .eq("user_id", userId);
@@ -254,14 +258,14 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
       }
 
       // Update local state
-      setContacts(contacts.map(contact => 
-        contact.id === contactId 
-          ? { ...contact, name: validationResult.data.name, phone_number: validationResult.data.phone_number, product: validationResult.data.product || null }
+      setContacts(contacts.map(contact =>
+        contact.id === contactId
+          ? { ...contact, name: validationResult.data.name, phone_number: validationResult.data.phone_number, product: validationResult.data.product || null, info: validationResult.data.info || null }
           : contact
       ));
       
       setEditingContact(null);
-      setEditFormData({ name: "", phone_number: "", product: "" });
+      setEditFormData({ name: "", phone_number: "", product: "", info: "" });
       setEditErrors({});
       
       toast({
@@ -349,52 +353,81 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
                   label: 'Name',
                   render: (value, contact: Contact) => (
                     editingContact === contact.id ? (
-                      <div className="flex-1 space-y-2">
-                        <div>
-                          <Input
-                            value={editFormData.name}
-                            onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                            placeholder="Contact name"
-                            className={editErrors.name ? "border-destructive" : ""}
-                          />
-                          {editErrors.name && (
-                            <p className="text-xs text-destructive mt-1">{editErrors.name}</p>
-                          )}
-                        </div>
-                        <div>
-                          <Input
-                            value={editFormData.phone_number}
-                            onChange={(e) => setEditFormData({ ...editFormData, phone_number: e.target.value })}
-                            placeholder="Phone number"
-                            className={editErrors.phone_number ? "border-destructive" : ""}
-                          />
-                          {editErrors.phone_number && (
-                            <p className="text-xs text-destructive mt-1">{editErrors.phone_number}</p>
-                          )}
-                        </div>
-                        <div>
-                          <Input
-                            value={editFormData.product}
-                            onChange={(e) => setEditFormData({ ...editFormData, product: e.target.value })}
-                            placeholder="Product (optional)"
-                            className={editErrors.product ? "border-destructive" : ""}
-                          />
-                          {editErrors.product && (
-                            <p className="text-xs text-destructive mt-1">{editErrors.product}</p>
-                          )}
-                        </div>
+                      <div>
+                        <Input
+                          value={editFormData.name}
+                          onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                          placeholder="Contact name"
+                          className={editErrors.name ? "border-destructive" : ""}
+                        />
+                        {editErrors.name && (
+                          <p className="text-xs text-destructive mt-1">{editErrors.name}</p>
+                        )}
                       </div>
                     ) : (
+                      <div className="font-medium">{value}</div>
+                    )
+                  )
+                },
+                {
+                  key: 'phone_number',
+                  label: 'Phone Number',
+                  render: (value, contact: Contact) => (
+                    editingContact === contact.id ? (
                       <div>
-                        <div className="font-medium">{value}</div>
-                        <div className="text-sm text-muted-foreground">
-                          {contact.phone_number}
-                        </div>
-                        {contact.product && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            Product: {contact.product}
-                          </div>
+                        <Input
+                          value={editFormData.phone_number}
+                          onChange={(e) => setEditFormData({ ...editFormData, phone_number: e.target.value })}
+                          placeholder="Phone number"
+                          className={editErrors.phone_number ? "border-destructive" : ""}
+                        />
+                        {editErrors.phone_number && (
+                          <p className="text-xs text-destructive mt-1">{editErrors.phone_number}</p>
                         )}
+                      </div>
+                    ) : (
+                      <div className="text-sm">{value}</div>
+                    )
+                  )
+                },
+                {
+                  key: 'product',
+                  label: 'Product',
+                  render: (value, contact: Contact) => (
+                    editingContact === contact.id ? (
+                      <div>
+                        <Input
+                          value={editFormData.product}
+                          onChange={(e) => setEditFormData({ ...editFormData, product: e.target.value })}
+                          placeholder="Product (optional)"
+                          className={editErrors.product ? "border-destructive" : ""}
+                        />
+                        {editErrors.product && (
+                          <p className="text-xs text-destructive mt-1">{editErrors.product}</p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-sm">{value || '-'}</div>
+                    )
+                  )
+                },
+                {
+                  key: 'info',
+                  label: 'Info',
+                  sortable: false,
+                  render: (value, contact: Contact) => (
+                    editingContact === contact.id ? (
+                      <div>
+                        <Textarea
+                          value={editFormData.info}
+                          onChange={(e) => setEditFormData({ ...editFormData, info: e.target.value })}
+                          placeholder="Info (optional)"
+                          className="min-h-[60px]"
+                        />
+                      </div>
+                    ) : (
+                      <div className="text-sm text-muted-foreground max-w-xs truncate" title={value || undefined}>
+                        {value || '-'}
                       </div>
                     )
                   )

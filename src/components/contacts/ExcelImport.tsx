@@ -56,62 +56,65 @@ export function ExcelImport({ userId, onSuccess }: ExcelImportProps) {
     return phoneNumber;
   };
 
-  const parseCSV = (text: string): Array<{name: string, phone_number: string, product?: string}> => {
+  const parseCSV = (text: string): Array<{name: string, phone_number: string, product?: string, info?: string}> => {
     const lines = text.split('\n').filter(line => line.trim());
     const contacts = [];
-    
+
     // Skip header if it exists (check if first line contains 'name' or 'phone')
     const startIndex = lines[0].toLowerCase().includes('name') || lines[0].toLowerCase().includes('phone') ? 1 : 0;
-    
+
     for (let i = startIndex; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
-      
+
       const parts = line.split(',').map(part => part.replace(/"/g, '').trim());
-      
+
       if (parts.length >= 2 && parts[0] && parts[1]) {
         contacts.push({
           name: parts[0],
           phone_number: formatPhoneNumber(parts[1]),
-          product: parts[2] || undefined
+          product: parts[2] || undefined,
+          info: parts[3] || undefined
         });
       }
     }
-    
+
     return contacts;
   };
 
-  const parseExcel = (buffer: ArrayBuffer): Array<{name: string, phone_number: string, product?: string}> => {
+  const parseExcel = (buffer: ArrayBuffer): Array<{name: string, phone_number: string, product?: string, info?: string}> => {
     const workbook = XLSX.read(buffer, { type: 'array' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
-    
+
     const contacts = [];
-    
+
     // Skip header if it exists (check if first row contains 'name' or 'phone')
     const startIndex = data[0] && (
       (typeof data[0][0] === 'string' && data[0][0].toLowerCase().includes('name')) ||
       (typeof data[0][1] === 'string' && data[0][1].toLowerCase().includes('phone'))
     ) ? 1 : 0;
-    
+
     for (let i = startIndex; i < data.length; i++) {
       const row = data[i];
       if (row && row.length >= 2 && row[0] && row[1]) {
         const name = String(row[0]).trim();
         const phoneNumber = String(row[1]).trim();
         const product = row[2] ? String(row[2]).trim() : undefined;
-        
+        const info = row[3] ? String(row[3]).trim() : undefined;
+
         if (name && phoneNumber) {
           contacts.push({
             name,
             phone_number: formatPhoneNumber(phoneNumber),
-            product
+            product,
+            info
           });
         }
       }
     }
-    
+
     return contacts;
   };
 
@@ -128,7 +131,7 @@ export function ExcelImport({ userId, onSuccess }: ExcelImportProps) {
     setImporting(true);
 
     try {
-      let contacts: Array<{name: string, phone_number: string, product?: string}> = [];
+      let contacts: Array<{name: string, phone_number: string, product?: string, info?: string}> = [];
 
       if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
         const text = await file.text();
@@ -142,7 +145,7 @@ export function ExcelImport({ userId, onSuccess }: ExcelImportProps) {
       if (contacts.length === 0) {
         toast({
           title: "Error",
-          description: "No valid contacts found in the file. Make sure the format is: Name, Phone Number, Product (optional)",
+          description: "No valid contacts found in the file. Make sure the format is: Name, Phone Number, Product (optional), Info (optional)",
           variant: "destructive"
         });
         setImporting(false);
@@ -195,7 +198,7 @@ export function ExcelImport({ userId, onSuccess }: ExcelImportProps) {
       <Alert>
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>
-          Upload a CSV or Excel file with contacts. Format: Name, Phone Number, Product (optional) - one contact per line
+          Upload a CSV or Excel file with contacts. Format: Name, Phone Number, Product (optional), Info (optional) - one contact per line
         </AlertDescription>
       </Alert>
 
@@ -232,13 +235,13 @@ export function ExcelImport({ userId, onSuccess }: ExcelImportProps) {
       <div className="text-sm text-muted-foreground">
         <p><strong>CSV Format Example (Malaysian numbers will auto-get +60 prefix):</strong></p>
         <code className="block bg-muted p-2 rounded mt-1">
-          Name, Phone Number, Product<br />
-          John Doe, 0123456789, Product A<br />
-          Jane Smith, 1137527311, Product B<br />
-          Ahmad Ali, +601234567890, Product C
+          Name, Phone Number, Product, Info<br />
+          John Doe, 0123456789, Product A, Additional info about John<br />
+          Jane Smith, 1137527311, Product B, Notes for Jane<br />
+          Ahmad Ali, +601234567890, Product C, Important customer
         </code>
         <p className="mt-2 text-xs">
-          Note: Malaysian numbers will automatically be formatted with +60 prefix if not already present. Product is optional.
+          Note: Malaysian numbers will automatically be formatted with +60 prefix if not already present. Product and Info are optional.
         </p>
       </div>
     </div>
