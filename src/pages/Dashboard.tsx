@@ -1,13 +1,12 @@
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { 
-  TrendingUp, 
-  CheckCircle, 
+import {
+  TrendingUp,
+  CheckCircle,
   XCircle,
   BarChart3,
   DollarSign,
-  Sparkles,
   AlertCircle,
   CalendarDays
 } from 'lucide-react';
@@ -15,8 +14,6 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { StatsCards } from '@/components/analytics/StatsCards';
-import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
-import { useOnboarding } from '@/contexts/OnboardingContext';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
   isCallSuccessful, 
@@ -39,7 +36,6 @@ import { FailedCallsTable } from '@/components/call-logs/FailedCallsTable';
 
 export default function Dashboard() {
   const { user } = useCustomAuth();
-  const { showOnboarding } = useOnboarding();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
@@ -216,16 +212,6 @@ export default function Dashboard() {
                   Here's an overview of your voice AI campaigns and performance.
                 </p>
               </div>
-              <div className="flex items-center gap-4">
-                <Button 
-                  variant="outline" 
-                  onClick={showOnboarding} 
-                  className="flex items-center gap-2"
-                >
-                  <Sparkles className="h-4 w-4" />
-                  <span>Show Guide</span>
-                </Button>
-              </div>
             </div>
           </div>
 
@@ -327,7 +313,6 @@ export default function Dashboard() {
               </Card>
             </div>
           )}
-      <OnboardingWizard />
     </div>
     </>
   );
