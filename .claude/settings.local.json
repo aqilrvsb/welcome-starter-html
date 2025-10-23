@@ -26,7 +26,8 @@
       "Bash(dir:*)",
       "Bash(sshpass:*)",
       "Bash(ssh:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []

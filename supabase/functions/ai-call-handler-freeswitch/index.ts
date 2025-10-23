@@ -526,10 +526,15 @@ async function transcribeAudio(session: any, audioBytes: Uint8Array) {
         session.transcript.push({ speaker: 'user', text: transcript, timestamp: new Date() });
         session.conversationHistory.push({ role: 'user', content: transcript });
 
+        // ONLY call getAIResponse if we have actual speech
+        // This prevents filler words from playing on background noise
         await getAIResponse(session, transcript);
       } else {
         console.log(`⚠️  Low confidence transcription ignored: "${transcript}" (${confidence.toFixed(2)})`);
       }
+    } else {
+      // No speech detected - just silence or noise
+      console.log(`🔇 No speech detected in audio chunk (status: ${result.RecognitionStatus})`);
     }
   } catch (error) {
     console.error("❌ Transcription error:", error);
