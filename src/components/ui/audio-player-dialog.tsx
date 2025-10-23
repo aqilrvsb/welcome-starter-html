@@ -17,6 +17,8 @@ export function AudioPlayerDialog({ recordingUrl, triggerButton, title = "Rakama
   const [volume, setVolume] = useState(1);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
@@ -147,26 +149,72 @@ export function AudioPlayerDialog({ recordingUrl, triggerButton, title = "Rakama
     }
   };
 
+  // Fetch audio and create blob URL when dialog opens
+  const loadAudio = async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      console.log('Fetching audio from:', recordingUrl);
+
+      const response = await fetch(recordingUrl, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'audio/*',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      setBlobUrl(url);
+
+      // Wait for audio element to load the blob
+      setTimeout(() => {
+        const a = audioRef.current;
+        if (a) {
+          a.currentTime = 0;
+          a.play().then(() => setIsPlaying(true)).catch((e) => {
+            console.error('Autoplay failed:', e);
+            setIsPlaying(false);
+          });
+        }
+      }, 100);
+    } catch (err) {
+      console.error('Failed to load audio:', err);
+      setError('Gagal memuat rakaman. Sila cuba muat turun.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Cleanup blob URL when component unmounts or URL changes
+  useEffect(() => {
+    return () => {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [blobUrl]);
+
   return (
     <Dialog open={open} onOpenChange={(v) => {
       setOpen(v);
       if (v) {
-        setError(null);
-        setTimeout(() => {
-          const a = audioRef.current;
-          console.log('Audio src:', recordingUrl);
-          if (a) {
-            a.currentTime = 0;
-            a.play().then(() => setIsPlaying(true)).catch((e) => {
-              console.error('Autoplay failed:', e);
-              setIsPlaying(false);
-            });
-          }
-        }, 0);
+        loadAudio();
       } else {
         const a = audioRef.current;
         if (a) a.pause();
         setIsPlaying(false);
+        // Cleanup blob URL
+        if (blobUrl) {
+          URL.revokeObjectURL(blobUrl);
+          setBlobUrl(null);
+        }
       }
     }}>
       <DialogTrigger asChild>
@@ -189,22 +237,25 @@ export function AudioPlayerDialog({ recordingUrl, triggerButton, title = "Rakama
             preload="metadata"
             playsInline
             className="hidden"
+            src={blobUrl || undefined}
             onLoadedMetadata={(e) => setDuration((e.target as HTMLAudioElement).duration || 0)}
             onTimeUpdate={(e) => setCurrentTime((e.target as HTMLAudioElement).currentTime)}
             onEnded={() => setIsPlaying(false)}
-            onError={(e) => { console.error('Audio loading error:', e, 'URL:', recordingUrl); setError('Gagal memuat audio.'); }}
-          >
-            <source src={recordingUrl} type={getAudioMimeType(recordingUrl)} />
-            Pelayar anda tidak menyokong audio.
-          </audio>
+            onError={(e) => {
+              console.error('Audio playback error:', e);
+              setError('Gagal memainkan audio.');
+            }}
+          />
+
+          {isLoading && (
+            <div className="text-sm text-muted-foreground text-center py-4">
+              Memuat rakaman...
+            </div>
+          )}
 
           {error && (
-            <div className="text-sm text-destructive">
-              Tidak dapat mainkan audio dalam popup. Anda boleh:
-              <div className="mt-2 flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => window.open(recordingUrl, '_blank')}>Buka tab baru</Button>
-                <Button variant="outline" size="sm" onClick={downloadRecording}><Download className="h-4 w-4 mr-1" />Muat turun</Button>
-              </div>
+            <div className="text-sm text-destructive text-center">
+              {error}
             </div>
           )}
           
