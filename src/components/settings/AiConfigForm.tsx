@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import {
   Loader2,
   CheckCircle,
@@ -72,6 +74,7 @@ export function AiConfigForm() {
   const queryClient = useQueryClient();
   const [showAccountSid, setShowAccountSid] = useState(false);
   const [showAuthToken, setShowAuthToken] = useState(false);
+  const [accountType, setAccountType] = useState<'trial' | 'pro'>('trial');
 
   const phoneForm = useForm<PhoneConfigFormData>({
     resolver: zodResolver(phoneConfigSchema),
@@ -398,9 +401,31 @@ export function AiConfigForm() {
               </AlertDescription>
             </Alert>
 
+            {/* Account Type Selection */}
+            <div className="mb-6 p-4 border rounded-lg bg-muted/30">
+              <Label className="text-base font-semibold mb-3 block">Select Account Type</Label>
+              <RadioGroup value={accountType} onValueChange={(value: 'trial' | 'pro') => setAccountType(value)} className="space-y-3">
+                <div className="flex items-center space-x-3 p-3 border rounded-lg bg-background hover:bg-muted/50 cursor-pointer">
+                  <RadioGroupItem value="trial" id="ai-trial" />
+                  <Label htmlFor="ai-trial" className="cursor-pointer flex-1">
+                    <div className="font-medium">Trial Account</div>
+                    <div className="text-sm text-muted-foreground">10 minutes free calling for testing</div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 p-3 border rounded-lg bg-background hover:bg-muted/50 cursor-pointer">
+                  <RadioGroupItem value="pro" id="ai-pro" />
+                  <Label htmlFor="ai-pro" className="cursor-pointer flex-1">
+                    <div className="font-medium">Pro Account</div>
+                    <div className="text-sm text-muted-foreground">RM0.15 per minute - unlimited calling</div>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
             <Form {...phoneForm}>
               <form onSubmit={phoneForm.handleSubmit(onSubmitPhone)} className="space-y-6">
-                {/* MikoPBX Section */}
+                {/* FreeSWITCH Server Section - Hidden for trial */}
+                {accountType === 'pro' && (
                 <div className="space-y-4">
                   <h4 className="font-medium flex items-center gap-2">
                     <Settings className="h-4 w-4" />
@@ -435,6 +460,7 @@ export function AiConfigForm() {
                     />
                   </div>
                 </div>
+                )}
 
                 {/* SIP Trunk Section */}
                 <div className="space-y-4">
