@@ -424,45 +424,8 @@ export function AiConfigForm() {
 
             <Form {...phoneForm}>
               <form onSubmit={phoneForm.handleSubmit(onSubmitPhone)} className="space-y-6">
-                {/* FreeSWITCH Server Section - Hidden for trial */}
+                {/* SIP Trunk Section - Only show for Pro Account */}
                 {accountType === 'pro' && (
-                <div className="space-y-4">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <Settings className="h-4 w-4" />
-                    FreeSWITCH Server
-                  </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={phoneForm.control}
-                      name="freeswitch_url"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>FreeSWITCH URL *</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="http://159.223.45.224" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={phoneForm.control}
-                      name="mikopbx_ami_username"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>ESL Username</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="admin" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                </div>
-                )}
-
-                {/* SIP Trunk Section */}
                 <div className="space-y-4">
                   <h4 className="font-medium flex items-center gap-2">
                     <Phone className="h-4 w-4" />
@@ -546,57 +509,35 @@ export function AiConfigForm() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={phoneForm.control}
-                      name="sip_codec"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Codec</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
-                            <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select codec" />
-                              </SelectTrigger>
-                            </FormControl>
-                            <SelectContent>
-                              <SelectItem value="ulaw">ulaw (G.711)</SelectItem>
-                              <SelectItem value="alaw">alaw (G.711a)</SelectItem>
-                              <SelectItem value="gsm">GSM</SelectItem>
-                              <SelectItem value="g729">G.729</SelectItem>
-                              <SelectItem value="g723">G.723</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={phoneForm.control}
-                      name="sip_caller_id"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Caller ID (Optional)</FormLabel>
-                          <FormControl>
-                            <Input {...field} placeholder="+60123456789" />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                  {/* Caller ID field */}
+                  <FormField
+                    control={phoneForm.control}
+                    name="sip_caller_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Caller ID (Optional)</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="+60123456789" />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
+                )}
 
-                <Button type="submit" className="w-full" disabled={savePhoneMutation.isPending}>
-                  {savePhoneMutation.isPending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    "Save Phone Configuration"
-                  )}
-                </Button>
+                {accountType === 'pro' && (
+                  <Button type="submit" className="w-full" disabled={savePhoneMutation.isPending}>
+                    {savePhoneMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      "Save Phone Configuration"
+                    )}
+                  </Button>
+                )}
               </form>
             </Form>
           </div>
