@@ -127,39 +127,6 @@ export function PromptsList() {
                 className: 'font-medium'
               },
               {
-                key: 'variables',
-                label: 'Variables',
-                sortable: false,
-                render: (variables: any) => (
-                  <div className="flex flex-wrap gap-1">
-                    {variables && Array.isArray(variables) && variables.length > 0 ? (
-                      <>
-                        {variables.slice(0, 2).map((variable: any, index: number) => (
-                          <Badge key={index} variant="outline" className="text-xs">
-                            {`{{${variable.name}}}`}
-                          </Badge>
-                        ))}
-                        {variables.length > 2 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{variables.length - 2}
-                          </Badge>
-                        )}
-                      </>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">Tiada variables</span>
-                    )}
-                  </div>
-                )
-              },
-              {
-                key: 'first_message',
-                label: 'Mesej Pertama',
-                className: 'max-w-xs',
-                render: (value) => (
-                  <span className="truncate block">{value}</span>
-                )
-              },
-              {
                 key: 'created_at',
                 label: 'Tarikh Dicipta',
                 render: (value) => (
