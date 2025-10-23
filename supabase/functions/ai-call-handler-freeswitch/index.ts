@@ -104,8 +104,14 @@ serve(async (req) => {
 
         console.log(`💰 Cost: RM ${cost.toFixed(2)} (${durationMinutes} minute(s))`);
 
-        // 🎙️ Recording URL (served via nginx from FreeSWITCH server)
-        const recordingUrl = `http://${FREESWITCH_HOST}/recordings/${callId}.wav`;
+        // 🎙️ Recording URL (get from session metadata where it was set during call origination)
+        const recordingUrl = session.recordingUrl || null;
+
+        if (recordingUrl) {
+          console.log(`🎙️ Recording URL: ${recordingUrl}`);
+        } else {
+          console.log(`⚠️ No recording URL found in session`);
+        }
 
         // Save to database
         try {
@@ -503,8 +509,12 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
   const userId = metadata.user_id || '';
   const campaignId = metadata.campaign_id || '';
   const promptId = metadata.prompt_id || '';
+  const recordingUrl = metadata.recording_url || null;
 
   console.log(`📞 Call started: ${callId}`);
+  if (recordingUrl) {
+    console.log(`🎙️ Recording URL from metadata: ${recordingUrl}`);
+  }
 
   // Fetch voice config and prompts (same as Twilio code)
   let voiceId = "UcqZLa941Kkt8ZhEEybf";
@@ -612,6 +622,7 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
     lastAudioActivityTime: Date.now(), // Track silence detection
     costs: { azure_stt: 0, llm: 0, tts: 0 },
     audioFileCounter: 0, // Track temp file numbers for playback
+    recordingUrl: recordingUrl, // Store recording URL from metadata
     // 🎯 STAGE TRACKING
     stages: stages, // All available stages from prompt
     currentStage: stages.length > 0 ? stages[0] : null, // Start with first stage
