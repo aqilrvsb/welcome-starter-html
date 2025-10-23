@@ -5,11 +5,22 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, CreditCard, Wallet, TrendingUp, DollarSign, Info } from 'lucide-react';
+import { Loader2, CreditCard, Wallet, TrendingUp, DollarSign, Info, Clock, Gift, ArrowUp, ArrowDown } from 'lucide-react';
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import Swal from 'sweetalert2';
+import { formatDistanceToNow } from 'date-fns';
+
+interface Transaction {
+  id: string;
+  transaction_type: string;
+  amount: number;
+  balance_before: number;
+  balance_after: number;
+  description: string;
+  created_at: string;
+}
 
 export default function CreditsTopup() {
   const { user } = useCustomAuth();
@@ -18,10 +29,11 @@ export default function CreditsTopup() {
   const [processing, setProcessing] = useState(false);
   const [creditsBalance, setCreditsBalance] = useState(0);
   const [totalMinutesUsed, setTotalMinutesUsed] = useState(0);
-  const [topupAmount, setTopupAmount] = useState<number>(100); // Default RM100
-  const [customAmount, setCustomAmount] = useState<string>('');
+  const [trialMinutesUsed, setTrialMinutesUsed] = useState(0);
+  const [topupAmount, setTopupAmount] = useState<number>(20); // Default RM20
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
-  const predefinedAmounts = [50, 100, 200, 500, 1000];
+  const predefinedAmounts = [10, 20, 50, 100];
 
   useEffect(() => {
     if (user) {
@@ -46,6 +58,21 @@ export default function CreditsTopup() {
 
       setCreditsBalance((userData as any)?.credits_balance || 0);
       setTotalMinutesUsed((userData as any)?.total_minutes_used || 0);
+      setTrialMinutesUsed((userData as any)?.trial_minutes_used || 0);
+
+      // Get recent transactions
+      const { data: transactionsData, error: transactionsError } = await supabase
+        .from('credits_transactions')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (transactionsError) {
+        console.error('Error loading transactions:', transactionsError);
+      } else {
+        setTransactions(transactionsData || []);
+      }
 
     } catch (error: any) {
       console.error('Error loading credits:', error);
@@ -62,7 +89,7 @@ export default function CreditsTopup() {
   const handleTopup = async () => {
     if (!user) return;
 
-    const amount = customAmount ? parseFloat(customAmount) : topupAmount;
+    const amount = topupAmount;
 
     if (!amount || amount < 10) {
       toast({
@@ -133,7 +160,8 @@ export default function CreditsTopup() {
     );
   }
 
-  const estimatedMinutes = creditsBalance / 0.15; // RM0.15 per minute
+  const balanceMinutes = creditsBalance / 0.15; // RM0.15 per minute
+  const trialMinutesRemaining = Math.max(0, 10 - trialMinutesUsed);
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -142,21 +170,20 @@ export default function CreditsTopup() {
         <p className="text-muted-foreground">Buy credits to make AI calls to your customers</p>
       </div>
 
-      {/* Current Balance Card */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        {/* Balance Minute */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Current Balance</CardTitle>
-            <Wallet className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Balance Minute</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">RM {creditsBalance.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">
-              ~{estimatedMinutes.toFixed(0)} minutes available
-            </p>
+            <div className="text-2xl font-bold">{balanceMinutes.toFixed(1)} min</div>
           </CardContent>
         </Card>
 
+        {/* Total Minutes Used */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Minutes Used</CardTitle>
@@ -164,12 +191,24 @@ export default function CreditsTopup() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalMinutesUsed.toFixed(1)} min</div>
+          </CardContent>
+        </Card>
+
+        {/* Trial Minute */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Trial Minute</CardTitle>
+            <Gift className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{trialMinutesRemaining.toFixed(1)} min</div>
             <p className="text-xs text-muted-foreground">
-              RM {(totalMinutesUsed * 0.15).toFixed(2)} spent
+              {trialMinutesUsed.toFixed(1)} / 10 min used
             </p>
           </CardContent>
         </Card>
 
+        {/* Rate */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Rate</CardTitle>
@@ -201,79 +240,35 @@ export default function CreditsTopup() {
         <CardHeader>
           <CardTitle>Select Top-Up Amount</CardTitle>
           <CardDescription>
-            Choose a predefined amount or enter a custom amount (minimum RM10)
+            Choose an amount based on the minutes you need (Rate: RM0.15 per minute)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Predefined Amounts */}
-          <div>
-            <Label className="mb-2 block">Quick Select</Label>
-            <div className="grid grid-cols-5 gap-2">
-              {predefinedAmounts.map((amount) => (
+          {/* Predefined Amounts with Larger Minute Display */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {predefinedAmounts.map((amount) => {
+              const minutes = (amount / 0.15).toFixed(0);
+              return (
                 <Button
                   key={amount}
-                  variant={topupAmount === amount && !customAmount ? "default" : "outline"}
-                  onClick={() => {
-                    setTopupAmount(amount);
-                    setCustomAmount('');
-                  }}
-                  className="flex flex-col h-auto py-3"
+                  variant={topupAmount === amount ? "default" : "outline"}
+                  onClick={() => setTopupAmount(amount)}
+                  className="flex flex-col h-auto py-6 gap-2"
                 >
-                  <span className="text-lg font-bold">RM{amount}</span>
-                  <span className="text-xs text-muted-foreground">
-                    ~{(amount / 0.15).toFixed(0)} min
-                  </span>
+                  <span className="text-2xl font-bold">RM{amount}</span>
+                  <div className="flex items-center gap-1 text-sm">
+                    <Clock className="h-4 w-4" />
+                    <span className="text-lg font-semibold">~{minutes} min</span>
+                  </div>
                 </Button>
-              ))}
-            </div>
-          </div>
-
-          {/* Custom Amount */}
-          <div>
-            <Label htmlFor="custom-amount">Custom Amount (RM)</Label>
-            <Input
-              id="custom-amount"
-              type="number"
-              placeholder="Enter custom amount (min RM10)"
-              value={customAmount}
-              onChange={(e) => {
-                setCustomAmount(e.target.value);
-                setTopupAmount(0);
-              }}
-              min={10}
-              step={10}
-            />
-            {customAmount && parseFloat(customAmount) >= 10 && (
-              <p className="text-sm text-muted-foreground mt-1">
-                ~{(parseFloat(customAmount) / 0.15).toFixed(0)} minutes
-              </p>
-            )}
-          </div>
-
-          {/* Summary */}
-          <div className="border-t pt-4 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Current Balance:</span>
-              <span className="font-medium">RM {creditsBalance.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span>Top-Up Amount:</span>
-              <span className="font-medium">
-                RM {(customAmount ? parseFloat(customAmount) : topupAmount).toFixed(2)}
-              </span>
-            </div>
-            <div className="flex justify-between text-lg font-bold border-t pt-2">
-              <span>New Balance:</span>
-              <span className="text-primary">
-                RM {(creditsBalance + (customAmount ? parseFloat(customAmount) : topupAmount)).toFixed(2)}
-              </span>
-            </div>
+              );
+            })}
           </div>
 
           {/* Payment Button */}
           <Button
             onClick={handleTopup}
-            disabled={processing || (!topupAmount && !customAmount)}
+            disabled={processing || !topupAmount}
             size="lg"
             className="w-full"
           >
@@ -303,9 +298,45 @@ export default function CreditsTopup() {
           <CardDescription>Your latest credits transactions</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground text-center py-4">
-            Coming soon - view your transaction history here
-          </p>
+          {transactions.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              No transactions yet
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {transactions.map((transaction) => {
+                const isCredit = transaction.transaction_type === 'topup' || transaction.transaction_type === 'bonus';
+                const Icon = isCredit ? ArrowUp : ArrowDown;
+                const iconColor = isCredit ? 'text-green-600' : 'text-red-600';
+                const amountColor = isCredit ? 'text-green-600' : 'text-red-600';
+                const amountPrefix = isCredit ? '+' : '-';
+
+                return (
+                  <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50">
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-full bg-muted ${iconColor}`}>
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{transaction.description}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(transaction.created_at), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-sm font-bold ${amountColor}`}>
+                        {amountPrefix}RM{Math.abs(transaction.amount).toFixed(2)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Balance: RM{transaction.balance_after.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
