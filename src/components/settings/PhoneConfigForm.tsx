@@ -10,10 +10,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 
 // Schema for form validation - AlienVOIP SIP only
 const phoneConfigSchema = z.object({
@@ -53,7 +55,7 @@ export function PhoneConfigForm() {
   const { user } = useCustomAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  const [accountType, setAccountType] = useState<'trial' | 'pro'>('trial');
 
   const form = useForm<PhoneConfigFormData>({
     resolver: zodResolver(phoneConfigSchema),
@@ -213,16 +215,39 @@ export function PhoneConfigForm() {
         <Alert className="mb-6 border-blue-200 bg-blue-50">
           <Info className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-sm text-blue-800">
-            <strong>Cost Savings:</strong> AlienVOIP is ~70% cheaper than Twilio!
-            Only RM0.006-0.01/min instead of RM0.03/min.
+            <strong>Free Trial:</strong> 10 minutes of free calling to test the system.
+            <br />
+            <strong>Pro Account:</strong> Only RM0.15 per minute - much cheaper than alternatives!
           </AlertDescription>
         </Alert>
+
+        {/* Account Type Selection */}
+        <div className="mb-6 p-4 border rounded-lg bg-muted/30">
+          <Label className="text-base font-semibold mb-3 block">Select Account Type</Label>
+          <RadioGroup value={accountType} onValueChange={(value: 'trial' | 'pro') => setAccountType(value)} className="space-y-3">
+            <div className="flex items-center space-x-3 p-3 border rounded-lg bg-background hover:bg-muted/50 cursor-pointer">
+              <RadioGroupItem value="trial" id="trial" />
+              <Label htmlFor="trial" className="cursor-pointer flex-1">
+                <div className="font-medium">Trial Account</div>
+                <div className="text-sm text-muted-foreground">10 minutes free calling for testing</div>
+              </Label>
+            </div>
+            <div className="flex items-center space-x-3 p-3 border rounded-lg bg-background hover:bg-muted/50 cursor-pointer">
+              <RadioGroupItem value="pro" id="pro" />
+              <Label htmlFor="pro" className="cursor-pointer flex-1">
+                <div className="font-medium">Pro Account</div>
+                <div className="text-sm text-muted-foreground">RM0.15 per minute - unlimited calling</div>
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* AlienVOIP SIP + MikoPBX Configuration */}
             <div className="space-y-4">
-                {/* MikoPBX Section */}
+                {/* MikoPBX Section - Hidden for both trial and pro */}
+                {false && (
                 <div className="p-4 border rounded-lg">
                   <div className="flex items-center gap-2 mb-4">
                     <Server className="h-5 w-5" />
@@ -296,6 +321,7 @@ export function PhoneConfigForm() {
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* SIP Trunk Section */}
                 <div className="p-4 border rounded-lg">
