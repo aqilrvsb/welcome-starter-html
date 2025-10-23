@@ -247,9 +247,8 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
 
   console.log(`📋 Audio stream Response: ${streamResponse}`);
 
-  // Start monitoring for CHANNEL_ANSWER event in background
-  // This will trigger the first message when customer picks up
-  monitorCallAnswerEvent(callId, websocketUrl);
+  // DON'T start monitoring here - will be in different Deno isolate!
+  // WebSocket handler will start monitoring when it connects
 
   conn.close();
 
@@ -383,9 +382,10 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
 
   activeCalls.set(callId, session);
 
-  // Don't send first message yet - wait for customer to answer
-  // ESL event monitor will detect CHANNEL_ANSWER and trigger greeting
+  // Start monitoring for CHANNEL_ANSWER event IN THIS ISOLATE
+  // This ensures monitorCallAnswerEvent() has access to the session we just created
   console.log("⏳ Waiting for customer to pick up call...");
+  monitorCallAnswerEvent(callId, "");
 }
 
 async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
