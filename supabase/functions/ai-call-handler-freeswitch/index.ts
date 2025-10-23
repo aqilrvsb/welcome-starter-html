@@ -333,13 +333,26 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
   const callId = uuidMatch[1];
   console.log(`✅ Call UUID: ${callId}`);
 
+  // Start recording this call - recordings saved in /usr/local/freeswitch/recordings/
+  const recordingFilename = `${callId}_${Date.now()}.wav`;
+  const recordingPath = `/usr/local/freeswitch/recordings/${recordingFilename}`;
+  const recordingUrl = `http://159.223.45.224/recordings/${recordingFilename}`;
+
+  const recordCmd = `api uuid_record ${callId} start ${recordingPath}`;
+  console.log(`🎙️ Starting recording: ${recordCmd}`);
+
+  await sendESLCommand(conn, recordCmd);
+  const recordResponse = await readESLResponse(conn);
+  console.log(`📋 Recording Response: ${recordResponse}`);
+
   // Now start audio streaming on the parked call
   // uuid_audio_stream <uuid> start <wss-url> [mono|mixed|stereo] [8000|16000] [metadata]
   // Build metadata JSON - only include campaign_id if it exists
   const metadataObj: any = {
     call_id: callId,
     user_id: userId,
-    prompt_id: promptId
+    prompt_id: promptId,
+    recording_url: recordingUrl,
   };
 
   if (campaignId) {
