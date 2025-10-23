@@ -10,7 +10,7 @@ import { canMakeCalls } from "@/lib/billing";
 import Swal from 'sweetalert2';
 
 const batchCallSchema = z.object({
-  campaignName: z.string().min(1, "Nama kempen diperlukan"),
+  campaignName: z.string().optional(), // Optional: If empty, calls will only appear in Call Logs
   promptId: z.string().min(1, "Sila pilih prompt"),
   phoneNumbers: z.string().min(1, "Senarai nombor telefon diperlukan"),
   retryEnabled: z.boolean().default(false),

@@ -108,13 +108,8 @@ export function ContactBatchCallModal({
     fetchSelectedContacts();
   }, [open, selectedContacts, userId]);
 
-  // Auto-generate campaign name based on selected contacts
-  useEffect(() => {
-    if (contacts.length > 0 && !form.getValues('campaignName')) {
-      const campaignName = `Batch Call - ${contacts.length} Contacts - ${new Date().toLocaleDateString()}`;
-      form.setValue('campaignName', campaignName);
-    }
-  }, [contacts, form]);
+  // Don't auto-generate campaign name - let user decide
+  // If empty, calls will only appear in Call Logs (no campaign created)
 
   const handleClose = () => {
     form.reset();
@@ -141,18 +136,22 @@ export function ContactBatchCallModal({
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="flex items-center gap-2">
-                        Nama Kempen (Campaign Name)
+                        Nama Kempen (Campaign Name) <span className="text-muted-foreground text-xs">(Optional)</span>
                         <Tooltip>
                           <TooltipTrigger>
                             <HelpCircle className="h-4 w-4 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Berikan nama yang mudah diingat untuk kempen anda</p>
+                            <p className="max-w-xs">
+                              <strong>Optional:</strong> Kosongkan jika hanya mahu panggilan muncul di Call Logs sahaja.
+                              <br/><br/>
+                              <strong>Isi nama:</strong> Jika mahu panggilan dikelompokkan dalam Campaign tab.
+                            </p>
                           </TooltipContent>
                         </Tooltip>
                       </FormLabel>
                       <FormControl>
-                        <Input placeholder="Enter campaign name" {...field} />
+                        <Input placeholder="Leave empty for call logs only" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

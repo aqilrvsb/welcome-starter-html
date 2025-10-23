@@ -45,9 +45,9 @@ serve(async (req) => {
 
     console.log(`Starting batch call campaign: ${campaignName} for user: ${user.id}`);
 
-    // Validate inputs
-    if (!campaignName || !phoneNumbers || !Array.isArray(phoneNumbers)) {
-      throw new Error('Missing required parameters: campaignName, phoneNumbers');
+    // Validate inputs - campaignName is now optional
+    if (!phoneNumbers || !Array.isArray(phoneNumbers)) {
+      throw new Error('Missing required parameters: phoneNumbers');
     }
 
     // Get user's API keys
@@ -222,28 +222,38 @@ serve(async (req) => {
       throw new Error('No valid phone numbers provided');
     }
 
-    // Create campaign record with retry settings
-    const { data: campaign, error: campaignError } = await supabaseAdmin
-      .from('campaigns')
-      .insert({
-        user_id: user.id,
-        campaign_name: campaignName,
-        prompt_id: prompt.id,
-        status: 'in_progress',
-        total_numbers: validPhones.length,
-        retry_enabled: retryEnabled || false,
-        retry_interval_minutes: retryIntervalMinutes || 30,
-        max_retry_attempts: maxRetryAttempts || 3,
-        current_retry_count: 0
-      })
-      .select()
-      .single();
+    // ✨ OPTIONAL CAMPAIGN: Only create campaign if campaignName is provided
+    let campaign = null;
+    let campaignId = null;
 
-    if (campaignError) {
-      throw new Error('Failed to create campaign: ' + campaignError.message);
+    if (campaignName && campaignName.trim() !== '') {
+      // Create campaign record with retry settings
+      const { data: campaignData, error: campaignError } = await supabaseAdmin
+        .from('campaigns')
+        .insert({
+          user_id: user.id,
+          campaign_name: campaignName,
+          prompt_id: prompt.id,
+          status: 'in_progress',
+          total_numbers: validPhones.length,
+          retry_enabled: retryEnabled || false,
+          retry_interval_minutes: retryIntervalMinutes || 30,
+          max_retry_attempts: maxRetryAttempts || 3,
+          current_retry_count: 0
+        })
+        .select()
+        .single();
+
+      if (campaignError) {
+        throw new Error('Failed to create campaign: ' + campaignError.message);
+      }
+
+      campaign = campaignData;
+      campaignId = campaign.id;
+      console.log(`Created campaign ${campaign.id} with ${validPhones.length} valid numbers`);
+    } else {
+      console.log(`No campaign name provided - calls will appear in Call Logs only (${validPhones.length} valid numbers)`);
     }
-
-    console.log(`Created campaign ${campaign.id} with ${validPhones.length} valid numbers`);
 
     // Full assistant configuration (from your PHP code)
     const assistantConfig = {
@@ -583,8 +593,8 @@ Only respond with the JSON.`
               customer_phone: phoneNumber,
               product: 'Vitamin VTEC',
               timestamp: new Date().toISOString(),
-              batch_id: campaign.id,
-              campaign_id: campaign.id,
+              batch_id: campaignId || null,
+              campaign_id: campaignId || null,
               prompt_version: promptId,
               user_id: user.id  // Add user_id for webhook security
             }
@@ -623,9 +633,9 @@ Only respond with the JSON.`
             assistant_id: responseData.assistantId
           });
 
-          // Log successful call
+          // Log successful call (campaign_id is optional now)
           await supabaseAdmin.from('call_logs').insert({
-            campaign_id: campaign.id,
+            campaign_id: campaignId || null,
             user_id: user.id,
             contact_id: contactData?.id || null,
             call_id: responseData.id,
@@ -655,9 +665,9 @@ Only respond with the JSON.`
           const errorMessage = error instanceof Error ? error.message : String(error);
           console.error(`Failed to call ${phoneNumber}:`, errorMessage);
           
-          // Log failed call with detailed error info
+          // Log failed call with detailed error info (campaign_id is optional now)
           await supabaseAdmin.from('call_logs').insert({
-            campaign_id: campaign.id,
+            campaign_id: campaignId || null,
             user_id: user.id,
             contact_id: contactData?.id || null,
             call_id: `failed_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -695,21 +705,24 @@ Only respond with the JSON.`
 
     console.log(`All calls completed: ${successCount} successful, ${failureCount} failed`);
 
-    // Update campaign status
-    await supabaseAdmin
-      .from('campaigns')
-      .update({
-        status: 'completed',
-        successful_calls: successCount,
-        failed_calls: failureCount
-      })
-      .eq('id', campaign.id);
-
-    console.log(`Batch call completed. Success: ${successCount}, Failed: ${failureCount}`);
+    // Update campaign status (only if campaign was created)
+    if (campaignId) {
+      await supabaseAdmin
+        .from('campaigns')
+        .update({
+          status: 'completed',
+          successful_calls: successCount,
+          failed_calls: failureCount
+        })
+        .eq('id', campaignId);
+      console.log(`Campaign ${campaignId} updated. Success: ${successCount}, Failed: ${failureCount}`);
+    } else {
+      console.log(`No campaign created. Calls logged to Call Logs only. Success: ${successCount}, Failed: ${failureCount}`);
+    }
 
     return new Response(JSON.stringify({
-      message: `Batch call campaign completed successfully`,
-      campaign_id: campaign.id,
+      message: campaignId ? `Batch call campaign completed successfully` : `Batch calls completed (call logs only)`,
+      campaign_id: campaignId || null,
       summary: {
         total_provided: phoneNumbers.length,
         valid_numbers: validPhones.length,
