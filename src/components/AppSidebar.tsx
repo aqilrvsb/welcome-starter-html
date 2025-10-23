@@ -3,7 +3,6 @@ import {
   BarChart3,
   Phone,
   Bot,
-  Zap,
   Settings,
   Home,
   LogOut,
@@ -11,8 +10,6 @@ import {
   Clock,
   XCircle,
   Users,
-  Receipt,
-  MessageCircle,
   PhoneOff,
   Layers,
   Wallet
@@ -46,8 +43,6 @@ const navigationItems = [
   { title: 'Call Logs', url: '/call-logs', icon: Phone },
   { title: 'Failed Calls', url: '/failed-calls', icon: PhoneOff },
   { title: 'Prompts', url: '/prompts', icon: Bot },
-  { title: 'WhatsApp', url: '/whatsapp', icon: MessageCircle },
-  { title: 'Invoices', url: '/invoices', icon: Receipt },
   { title: 'Settings', url: '/settings', icon: Settings },
 ];
 
