@@ -95,8 +95,6 @@ Tunggu jawapan
 7. !!Stage Present Product!!
 Purpose : PRODUCT PRESENTATION (2 Layer)
 
-"Kami baru hantar gambar testimoni ke WhatsApp cik. Cik boleh semak dulu sambil saya terangkan ya."
-
 Berdasarkan masalah cik:
 
 Jika SEMBELIT:
@@ -154,7 +152,7 @@ Tunggu jawapan.
 
 9. OBJECTION HANDLING:
 
-* Jika 'tak berminat': Convince dengan testimoni umum dan minta tengok WhatsApp (gambar testimoni).
+* Jika 'tak berminat': Convince dengan testimoni umum.
 * Jika 'scam': Tekankan COD, bayar bila barang sampai.
 * Jika 'nak fikir': Hold promo 24 jam, offer dua botol Siratus ringgit + layak cabutan bertuah.
 
