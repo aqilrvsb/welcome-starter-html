@@ -376,6 +376,7 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
     isSpeaking: false,
     isCallAnswered: false, // Track if customer has answered
     hasGreeted: false, // Track if we've sent first message
+    lastAudioActivityTime: Date.now(), // Track silence detection
     costs: { azure_stt: 0, llm: 0, tts: 0 },
     audioFileCounter: 0, // Track temp file numbers for playback
   };
@@ -413,11 +414,32 @@ async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
 
   // Convert to Uint8Array (mod_audio_stream sends L16/PCM)
   const pcmData = new Uint8Array(audioData);
+
+  // Detect if this chunk contains silence
+  // Convert to 16-bit samples for analysis
+  const samples = new Int16Array(pcmData.buffer, pcmData.byteOffset, pcmData.length / 2);
+  let sumSquares = 0;
+  for (let i = 0; i < samples.length; i++) {
+    sumSquares += samples[i] * samples[i];
+  }
+  const rms = Math.sqrt(sumSquares / samples.length);
+  const isSilent = rms < 500; // Silence threshold (adjust if needed)
+
   session.audioBuffer.push(pcmData);
 
-  // Process every ~2 seconds (larger chunks = better transcription accuracy)
+  // Track last audio activity time
+  if (!isSilent) {
+    session.lastAudioActivityTime = Date.now();
+  }
+
+  // Process if we have enough audio AND 2 seconds of silence detected
   const totalSize = session.audioBuffer.reduce((sum: number, arr: Uint8Array) => sum + arr.length, 0);
-  if (totalSize >= 32000) {  // Increased from 16000 for better accuracy
+  const timeSinceLastActivity = Date.now() - (session.lastAudioActivityTime || Date.now());
+  const hasMinimumAudio = totalSize >= 16000; // At least 1 second of audio
+  const hasSilence = timeSinceLastActivity >= 2000; // 2 seconds of silence
+
+  if (hasMinimumAudio && hasSilence) {
+    console.log(`🔇 Detected 2 seconds of silence, processing ${totalSize} bytes...`);
     session.isProcessingAudio = true;
 
     const combined = new Uint8Array(totalSize);
