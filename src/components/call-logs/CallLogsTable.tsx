@@ -4,7 +4,7 @@ import { useCustomAuth } from '@/contexts/CustomAuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Phone, Calendar, Clock, Play, FileText, DollarSign, ChevronUp, ChevronDown, Trash2, Info } from 'lucide-react';
+import { Phone, Calendar, Clock, Play, FileText, DollarSign, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -32,12 +32,13 @@ interface CallLog {
   created_at: string;
   updated_at: string;
   end_of_call_report?: any;
-  captured_data?: Record<string, any>;
   customer_name?: string;
+  cost?: number;
+  recording_url?: string;
+  transcript?: string;
   metadata?: {
     recording_url?: string;
     transcript?: string;
-    summary?: string;
     stage_reached?: string;
     vapi_cost?: number;
     twilio_cost?: number;
@@ -286,15 +287,16 @@ export function CallLogsTable() {
 
   const renderRecordingButton = (log: any) => {
     // Check multiple possible locations for recording URL
-    const recordingUrl = log?.metadata?.recording_url || 
+    const recordingUrl = log?.recording_url ||
+                        log?.metadata?.recording_url ||
                         log?.end_of_call_report?.call?.recording?.url ||
                         log?.end_of_call_report?.recording_url ||
                         log?.metadata?.recordingUrl;
-    
+
     if (!recordingUrl) {
       return <span className="text-muted-foreground">No recording</span>;
     }
-    
+
     return (
       <AudioPlayerDialog
         recordingUrl={recordingUrl}
@@ -308,7 +310,8 @@ export function CallLogsTable() {
     );
   };
 
-  const renderTranscriptDialog = (transcript?: string) => {
+  const renderTranscriptDialog = (log: any) => {
+    const transcript = log?.transcript || log?.metadata?.transcript;
     if (!transcript) return <span className="text-muted-foreground">No transcript</span>;
     
     return (
@@ -606,9 +609,6 @@ export function CallLogsTable() {
                     </TableHead>
                     <TableHead>Recording</TableHead>
                     <TableHead>Transcript</TableHead>
-                    <TableHead>AI Summary</TableHead>
-                    <TableHead>Captured Data</TableHead>
-                    <TableHead>Info</TableHead>
                     <TableHead>Cost</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -651,16 +651,7 @@ export function CallLogsTable() {
                       {renderRecordingButton(log)}
                     </TableCell>
                     <TableCell>
-                      {renderTranscriptDialog(log.metadata?.transcript)}
-                    </TableCell>
-                    <TableCell>
-                      {renderSummaryDialog(log.metadata?.summary)}
-                    </TableCell>
-                    <TableCell>
-                      {renderCapturedDataDialog(log.captured_data)}
-                    </TableCell>
-                    <TableCell>
-                      {renderErrorInfoDialog(log.metadata)}
+                      {renderTranscriptDialog(log)}
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
@@ -762,10 +753,7 @@ export function CallLogsTable() {
                   
                   <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
                     {renderRecordingButton(log)}
-                    {renderTranscriptDialog(log.metadata?.transcript)}
-                    {renderSummaryDialog(log.metadata?.summary)}
-                    {renderCapturedDataDialog(log.captured_data)}
-                    {renderErrorInfoDialog(log.metadata)}
+                    {renderTranscriptDialog(log)}
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button

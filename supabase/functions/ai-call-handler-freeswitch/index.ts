@@ -68,8 +68,70 @@ serve(async (req) => {
       }
     };
 
-    socket.onclose = () => {
-      console.log("📞 Call ended");
+    socket.onclose = async () => {
+      console.log("📞 Call ended - saving final data...");
+
+      // Find session by socket
+      let callId = null;
+      let session = null;
+      for (const [id, sess] of activeCalls.entries()) {
+        if (sess.socket === socket) {
+          callId = id;
+          session = sess;
+          break;
+        }
+      }
+
+      if (session && callId) {
+        // ⏱️ Calculate call duration
+        const endTime = new Date();
+        const durationMs = endTime.getTime() - session.startTime.getTime();
+        const durationSeconds = Math.floor(durationMs / 1000);
+
+        console.log(`⏱️  Call duration: ${durationSeconds} seconds`);
+
+        // 📝 Format transcript as readable text
+        const transcriptText = session.transcript
+          .map((entry: any) => {
+            const speaker = entry.speaker === 'assistant' ? 'AI' : 'Customer';
+            return `[${speaker}]: ${entry.text}`;
+          })
+          .join('\n\n');
+
+        // 💰 Calculate cost (RM 0.15 per minute or less)
+        const durationMinutes = Math.ceil(durationSeconds / 60); // Round up to nearest minute
+        const cost = durationMinutes * 0.15;
+
+        console.log(`💰 Cost: RM ${cost.toFixed(2)} (${durationMinutes} minute(s))`);
+
+        // 🎙️ Recording URL (served via nginx from FreeSWITCH server)
+        const recordingUrl = `http://${FREESWITCH_HOST}/recordings/${callId}.wav`;
+
+        // Save to database
+        try {
+          const { error } = await supabaseAdmin
+            .from('call_logs')
+            .update({
+              duration: durationSeconds,
+              transcript: transcriptText,
+              cost: cost,
+              recording_url: recordingUrl, // Save recording URL for playback
+            })
+            .eq('call_id', callId);
+
+          if (error) {
+            console.error(`❌ Failed to save final call data:`, error);
+          } else {
+            console.log(`✅ Call data saved: duration=${durationSeconds}s, cost=RM${cost.toFixed(2)}, recording=${recordingUrl}`);
+          }
+        } catch (err) {
+          console.error(`❌ Database error:`, err);
+        }
+
+        // Clean up session
+        activeCalls.delete(callId);
+        console.log(`🧹 Session ${callId} cleaned up`);
+      }
     };
 
     return response;
@@ -138,12 +200,18 @@ async function handleBatchCall(req: Request): Promise<Response> {
           websocketUrl: WEBSOCKET_URL,
         });
 
+        // 🎯 Extract first stage from prompt for initial stage_reached value
+        const stageRegex = /!!Stage\s+([^!]+)!!/;
+        const firstStageMatch = prompt.system_prompt?.match(stageRegex);
+        const initialStage = firstStageMatch ? firstStageMatch[1].trim() : null;
+
         await supabaseAdmin.from('call_logs').insert({
           campaign_id: campaign.id,
           user_id: userId,
           call_id: callId,
           phone_number: phoneNumber,
           status: 'initiated',
+          stage_reached: initialStage, // Set initial stage from prompt
         });
 
         return { success: true, phoneNumber, callId };
@@ -201,11 +269,14 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
   await readESLResponse(conn);
 
   // Build originate command - first originate and park, then start audio_stream
+  // 🎙️ CALL RECORDING: Use ${uuid} variable for recording path (FreeSWITCH will substitute it)
+  const recordingPath = `/var/www/html/recordings/\${uuid}.wav`;
   const vars = [
     `user_id=${userId}`,
     `campaign_id=${campaignId}`,
     `prompt_id=${promptId}`,
     `origination_caller_id_number=${phoneNumber}`,
+    `execute_on_answer=record_session ${recordingPath}`, // Start recording when answered
   ].join(',');
 
   // Originate and park the call first
@@ -227,6 +298,7 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
 
   const callId = uuidMatch[1];
   console.log(`✅ Call UUID: ${callId}`);
+  console.log(`🎙️ Recording will be saved to: /var/www/html/recordings/${callId}.wav`);
 
   // Now start audio streaming on the parked call
   // uuid_audio_stream <uuid> start <wss-url> [mono|mixed|stereo] [8000|16000] [metadata]
@@ -256,7 +328,8 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
 }
 
 /**
- * Monitor for CHANNEL_ANSWER event and notify WebSocket handler
+ * Monitor for CHANNEL_ANSWER and CHANNEL_HANGUP events
+ * 📊 STATUS TRACKING: Updates call status based on hangup cause
  */
 async function monitorCallAnswerEvent(callId: string, websocketUrl: string) {
   try {
@@ -269,51 +342,107 @@ async function monitorCallAnswerEvent(callId: string, websocketUrl: string) {
     await sendESLCommand(conn, `auth ${FREESWITCH_ESL_PASSWORD}`);
     await readESLResponse(conn);
 
-    // Subscribe to CHANNEL_ANSWER events for this specific call
+    // Subscribe to both ANSWER and HANGUP events for this specific call
     await sendESLCommand(conn, `filter Unique-ID ${callId}`);
     await readESLResponse(conn);
 
-    await sendESLCommand(conn, `event CHANNEL_ANSWER`);
+    await sendESLCommand(conn, `event CHANNEL_ANSWER CHANNEL_HANGUP`);
     await readESLResponse(conn);
 
-    console.log(`👂 Monitoring call ${callId} for ANSWER event...`);
+    console.log(`👂 Monitoring call ${callId} for ANSWER/HANGUP events...`);
 
-    // Wait for CHANNEL_ANSWER event (non-blocking)
-    const answerEvent = await readESLResponse(conn);
+    // Wait for events (non-blocking)
+    let keepMonitoring = true;
+    while (keepMonitoring) {
+      const event = await readESLResponse(conn);
 
-    if (answerEvent.includes('CHANNEL_ANSWER')) {
-      console.log(`✅ Call ${callId} ANSWERED by customer!`);
+      if (event.includes('CHANNEL_ANSWER')) {
+        console.log(`✅ Call ${callId} ANSWERED by customer!`);
 
-      // Wait for session to be created (race condition fix)
-      // WebSocket might be slower than ESL event
-      let session = activeCalls.get(callId);
-      let retries = 0;
-      const maxRetries = 30; // Wait up to 3 seconds (30 x 100ms)
+        // Wait for session to be created (race condition fix)
+        let session = activeCalls.get(callId);
+        let retries = 0;
+        const maxRetries = 30; // Wait up to 3 seconds (30 x 100ms)
 
-      while (!session && retries < maxRetries) {
-        console.log(`⏳ Waiting for session ${callId} to be created... (${retries + 1}/${maxRetries})`);
-        await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
-        session = activeCalls.get(callId);
-        retries++;
+        while (!session && retries < maxRetries) {
+          console.log(`⏳ Waiting for session ${callId} to be created... (${retries + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms
+          session = activeCalls.get(callId);
+          retries++;
+        }
+
+        if (session && !session.hasGreeted) {
+          session.isCallAnswered = true;
+
+          // 📊 Update status to "answered"
+          await updateCallStatus(callId, 'answered');
+
+          console.log(`📞 Triggering greeting for ${callId}...`);
+          await speakToCall(session, session.firstMessage);
+          session.hasGreeted = true;
+        } else if (!session) {
+          console.error(`❌ Session ${callId} not found in activeCalls after ${maxRetries} retries!`);
+        }
       }
 
-      console.log(`🔍 Debug: session=${!!session}, hasGreeted=${session?.hasGreeted}, firstMessage="${session?.firstMessage}"`);
+      if (event.includes('CHANNEL_HANGUP')) {
+        console.log(`📞 Call ${callId} HANGUP detected`);
 
-      if (session && !session.hasGreeted) {
-        session.isCallAnswered = true;
-        console.log(`📞 Triggering greeting for ${callId}...`);
-        await speakToCall(session, session.firstMessage);
-        session.hasGreeted = true;
-      } else if (!session) {
-        console.error(`❌ Session ${callId} not found in activeCalls after ${maxRetries} retries!`);
-      } else if (session.hasGreeted) {
-        console.log(`⚠️ Session ${callId} already greeted, skipping`);
+        // Extract hangup cause from event
+        const causeMatch = event.match(/Hangup-Cause:\s*(\w+)/i);
+        const hangupCause = causeMatch ? causeMatch[1] : 'UNKNOWN';
+        console.log(`📊 Hangup cause: ${hangupCause}`);
+
+        // 📊 Determine status based on hangup cause
+        let status = 'failed';
+
+        if (hangupCause === 'NORMAL_CLEARING' || hangupCause === 'ORIGINATOR_CANCEL') {
+          const session = activeCalls.get(callId);
+          if (session && session.isCallAnswered) {
+            status = 'answered'; // Call was answered successfully
+          } else {
+            status = 'no_answered'; // Customer declined or didn't pick up
+          }
+        } else if (hangupCause === 'NO_ANSWER' || hangupCause === 'USER_NOT_REGISTERED') {
+          status = 'no_answered';
+        } else if (hangupCause === 'CALL_REJECTED' || hangupCause === 'USER_BUSY') {
+          status = 'no_answered';
+        } else if (hangupCause === 'NO_USER_RESPONSE' || hangupCause === 'RECOVERY_ON_TIMER_EXPIRE') {
+          status = 'voicemail'; // Likely went to voicemail
+        } else if (hangupCause === 'INVALID_NUMBER_FORMAT' || hangupCause === 'UNALLOCATED_NUMBER') {
+          status = 'failed';
+        }
+
+        console.log(`📊 Final status: ${status}`);
+        await updateCallStatus(callId, status);
+
+        keepMonitoring = false;
       }
     }
 
     conn.close();
   } catch (error) {
     console.error(`❌ Error monitoring call ${callId}:`, error);
+  }
+}
+
+/**
+ * 📊 Update call status in database
+ */
+async function updateCallStatus(callId: string, status: string) {
+  try {
+    const { error } = await supabaseAdmin
+      .from('call_logs')
+      .update({ status: status })
+      .eq('call_id', callId);
+
+    if (error) {
+      console.error(`❌ Failed to update status to "${status}":`, error);
+    } else {
+      console.log(`✅ Status updated to "${status}" in database`);
+    }
+  } catch (err) {
+    console.error(`❌ Database error updating status:`, err);
   }
 }
 
@@ -358,6 +487,16 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
     }
   }
 
+  // 🎯 STAGE DETECTION: Parse all stages from system prompt
+  // Extract all !!Stage [Name]!! markers from the prompt
+  const stageRegex = /!!Stage\s+([^!]+)!!/g;
+  const stages: string[] = [];
+  let match;
+  while ((match = stageRegex.exec(systemPrompt)) !== null) {
+    stages.push(match[1].trim());
+  }
+  console.log(`📊 Detected ${stages.length} stages from prompt:`, stages);
+
   // Initialize session (SAME AS TWILIO!)
   const session = {
     callId,
@@ -379,6 +518,10 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
     lastAudioActivityTime: Date.now(), // Track silence detection
     costs: { azure_stt: 0, llm: 0, tts: 0 },
     audioFileCounter: 0, // Track temp file numbers for playback
+    // 🎯 STAGE TRACKING
+    stages: stages, // All available stages from prompt
+    currentStage: stages.length > 0 ? stages[0] : null, // Start with first stage
+    promptId: promptId, // Store for database updates
   };
 
   activeCalls.set(callId, session);
@@ -585,6 +728,35 @@ async function getAIResponse(session: any, userMessage: string) {
 
       session.conversationHistory.push({ role: 'assistant', content: aiResponse });
       session.transcript.push({ speaker: 'assistant', text: aiResponse, timestamp: new Date() });
+
+      // 🎯 STAGE DETECTION: Check if AI response contains stage marker
+      const stageMatch = aiResponse.match(/!!Stage\s+([^!]+)!!/);
+      if (stageMatch) {
+        const newStage = stageMatch[1].trim();
+
+        // Only update if this is a different stage
+        if (newStage !== session.currentStage) {
+          const oldStage = session.currentStage;
+          session.currentStage = newStage;
+          console.log(`🎯 Stage transition: "${oldStage}" → "${newStage}"`);
+
+          // Update database with new stage
+          try {
+            const { error: updateError } = await supabaseAdmin
+              .from('call_logs')
+              .update({ stage_reached: newStage })
+              .eq('call_id', session.callId);
+
+            if (updateError) {
+              console.error(`❌ Failed to update stage in database:`, updateError);
+            } else {
+              console.log(`✅ Stage saved to database: "${newStage}"`);
+            }
+          } catch (dbError) {
+            console.error(`❌ Database error updating stage:`, dbError);
+          }
+        }
+      }
 
       await speakToCall(session, aiResponse);
     }
