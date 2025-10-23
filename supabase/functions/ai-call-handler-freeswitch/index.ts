@@ -432,14 +432,14 @@ async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
     session.lastAudioActivityTime = Date.now();
   }
 
-  // Process if we have enough audio AND 2 seconds of silence detected
+  // Process if we have enough audio AND 1.5 seconds of silence detected
   const totalSize = session.audioBuffer.reduce((sum: number, arr: Uint8Array) => sum + arr.length, 0);
   const timeSinceLastActivity = Date.now() - (session.lastAudioActivityTime || Date.now());
   const hasMinimumAudio = totalSize >= 16000; // At least 1 second of audio
-  const hasSilence = timeSinceLastActivity >= 2000; // 2 seconds of silence
+  const hasSilence = timeSinceLastActivity >= 1500; // 1.5 seconds of silence (reduced from 2.0s for faster response)
 
   if (hasMinimumAudio && hasSilence) {
-    console.log(`🔇 Detected 2 seconds of silence, processing ${totalSize} bytes...`);
+    console.log(`🔇 Detected 1.5 seconds of silence, processing ${totalSize} bytes...`);
     session.isProcessingAudio = true;
 
     const combined = new Uint8Array(totalSize);
