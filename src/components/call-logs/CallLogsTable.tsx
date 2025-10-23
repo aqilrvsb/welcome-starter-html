@@ -86,8 +86,9 @@ export function CallLogsTable() {
         .from('call_logs')
         .select(`
           *,
-          contacts(name),
-          campaigns(id, prompt_id, prompts(id, prompt_name))
+          contacts(name, product),
+          campaigns(campaign_name),
+          prompts(prompt_name)
         `)
         .eq('user_id', user.id);
 
@@ -252,7 +253,7 @@ export function CallLogsTable() {
     if (!duration) return 'N/A';
     const minutes = Math.floor(duration / 60);
     const seconds = duration % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    return `${minutes} min ${seconds} sec`;
   };
 
   const filteredLogs = callLogs?.filter(log => {
@@ -566,7 +567,9 @@ export function CallLogsTable() {
                         )}
                       </Button>
                     </TableHead>
+                    <TableHead>Product</TableHead>
                     <TableHead>Prompt</TableHead>
+                    <TableHead>Campaign</TableHead>
                     <TableHead>Stage</TableHead>
                     <TableHead>
                       <Button
@@ -609,7 +612,6 @@ export function CallLogsTable() {
                     </TableHead>
                     <TableHead>Recording</TableHead>
                     <TableHead>Transcript</TableHead>
-                    <TableHead>Cost</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -626,7 +628,13 @@ export function CallLogsTable() {
                       {log.caller_number || 'Unknown'}
                     </TableCell>
                     <TableCell>
-                      {getPromptName(log)}
+                      {(log as any).contacts?.product || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {(log as any).prompts?.prompt_name || '-'}
+                    </TableCell>
+                    <TableCell>
+                      {(log as any).campaigns?.campaign_name || '-'}
                     </TableCell>
                     <TableCell>
                       <span className="text-sm font-medium text-primary">
@@ -652,19 +660,6 @@ export function CallLogsTable() {
                     </TableCell>
                     <TableCell>
                       {renderTranscriptDialog(log)}
-                    </TableCell>
-                    <TableCell>
-                      <div className="space-y-1">
-                        <div className="text-xs font-medium">
-                          Voice: ${(log.metadata?.vapi_cost || 0).toFixed(4)}
-                        </div>
-                        <div className="text-xs font-medium">
-                          Telephony: ${(log.metadata?.twilio_cost || 0).toFixed(4)}
-                        </div>
-                        <div className="text-xs text-muted-foreground border-t pt-1">
-                          Total: ${(log.metadata?.total_cost || log.metadata?.call_cost || 0).toFixed(4)}
-                        </div>
-                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <AlertDialog>
@@ -716,29 +711,17 @@ export function CallLogsTable() {
                       </div>
                       <h3 className="font-semibold text-sm">{log.customer_name || (log as any).contacts?.name || 'Unknown'}</h3>
                       <p className="text-xs text-muted-foreground">Phone: {log.caller_number}</p>
-                      <p className="text-xs text-muted-foreground">{getPromptName(log)}</p>
+                      <p className="text-xs text-muted-foreground">Product: {(log as any).contacts?.product || '-'}</p>
+                      <p className="text-xs text-muted-foreground">Prompt: {(log as any).prompts?.prompt_name || '-'}</p>
+                      <p className="text-xs text-muted-foreground">Campaign: {(log as any).campaigns?.campaign_name || '-'}</p>
                       <p className="text-xs text-primary font-medium">Stage: {log.stage_reached || log.metadata?.stage_reached || '-'}</p>
                     </div>
                   </div>
-                  
+
                   <div className="space-y-2 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Duration:</span>
                       <span className="font-medium">{formatDuration(log.duration)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Cost:</span>
-                      <div className="space-y-1">
-                         <div className="text-xs">
-                           Voice: ${(log.metadata?.vapi_cost || 0).toFixed(4)}
-                         </div>
-                         <div className="text-xs">
-                           Telephony: ${(log.metadata?.twilio_cost || 0).toFixed(4)}
-                         </div>
-                         <div className="font-medium text-xs border-t pt-1">
-                           Total: ${(log.metadata?.total_cost || log.metadata?.call_cost || 0).toFixed(4)}
-                         </div>
-                      </div>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Started:</span>
@@ -750,7 +733,7 @@ export function CallLogsTable() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t">
                     {renderRecordingButton(log)}
                     {renderTranscriptDialog(log)}
