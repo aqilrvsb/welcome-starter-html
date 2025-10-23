@@ -378,7 +378,8 @@ async function monitorCallAnswerEvent(callId: string, websocketUrl: string) {
           await updateCallStatus(callId, 'answered');
 
           console.log(`📞 Triggering greeting for ${callId}...`);
-          await speakToCall(session, session.firstMessage);
+          // Let AI generate first message from system prompt
+          await getAIResponse(session, "[START_CALL]");
           session.hasGreeted = true;
         } else if (!session) {
           console.error(`❌ Session ${callId} not found in activeCalls after ${maxRetries} retries!`);
@@ -458,7 +459,6 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
   let voiceId = "UcqZLa941Kkt8ZhEEybf";
   let voiceSpeed = 1.5;
   let systemPrompt = "You are a helpful AI assistant.";
-  let firstMessage = "Hello! How can I help you today?";
 
   if (userId) {
     const { data: voiceConfig } = await supabaseAdmin
@@ -473,17 +473,61 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
     }
   }
 
+  // Fetch contact data for variable replacement
+  let contactData = {
+    name: '',
+    phone: '',
+    product: '',
+    info: ''
+  };
+
+  if (callId) {
+    const { data: callLog } = await supabaseAdmin
+      .from('call_logs')
+      .select('contact_id, phone_number')
+      .eq('call_id', callId)
+      .maybeSingle();
+
+    if (callLog?.contact_id) {
+      const { data: contact } = await supabaseAdmin
+        .from('contacts')
+        .select('name, phone_number, product, info')
+        .eq('id', callLog.contact_id)
+        .maybeSingle();
+
+      if (contact) {
+        contactData = {
+          name: contact.name || '',
+          phone: contact.phone_number || callLog.phone_number || '',
+          product: contact.product || '',
+          info: contact.info || ''
+        };
+      }
+    } else if (callLog?.phone_number) {
+      // If no contact_id, just use phone number from call_logs
+      contactData.phone = callLog.phone_number;
+    }
+  }
+
+  console.log(`📝 Contact data for variables:`, contactData);
+
   if (promptId && userId) {
     const { data: promptData } = await supabaseAdmin
       .from('prompts')
-      .select('system_prompt, first_message')
+      .select('system_prompt')
       .eq('id', promptId)
       .eq('user_id', userId)
       .single();
 
     if (promptData) {
-      systemPrompt = promptData.system_prompt;
-      firstMessage = promptData.first_message;
+      // Replace variables with contact data
+      systemPrompt = promptData.system_prompt
+        .replace(/\{\{name\}\}/g, contactData.name)
+        .replace(/\{\{phone\}\}/g, contactData.phone)
+        .replace(/\{\{product\}\}/g, contactData.product)
+        .replace(/\{\{info\}\}/g, contactData.info);
+
+      console.log(`✅ Variables replaced in system prompt`);
     }
   }
 
@@ -503,7 +547,6 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
     userId,
     campaignId,
     systemPrompt,
-    firstMessage,
     voiceId,
     voiceSpeed,
     socket,

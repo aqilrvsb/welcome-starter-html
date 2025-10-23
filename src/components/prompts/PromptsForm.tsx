@@ -11,24 +11,14 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { X, Plus, Trash2, Copy, Info } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-
-const variableSchema = z.object({
-  name: z.string().min(1, "Nama variable diperlukan"),
-  description: z.string().min(1, "Penerangan variable diperlukan"),
-});
+import { X } from "lucide-react";
 
 const promptSchema = z.object({
   prompt_name: z.string().min(1, "Nama prompt diperlukan"),
-  first_message: z.string().min(1, "Mesej pertama diperlukan"),
   system_prompt: z.string().min(10, "Skrip sistem diperlukan (minimum 10 karakter)"),
-  variables: z.array(variableSchema).optional(),
 });
 
 type PromptFormData = z.infer<typeof promptSchema>;
-type VariableData = z.infer<typeof variableSchema>;
 
 interface PromptsFormProps {
   prompt?: any;
@@ -38,8 +28,6 @@ interface PromptsFormProps {
 
 export function PromptsForm({ prompt, onClose, onSuccess }: PromptsFormProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [variables, setVariables] = useState<VariableData[]>(prompt?.variables || []);
-  const [newVariable, setNewVariable] = useState<VariableData>({ name: "", description: "" });
   const { user } = useCustomAuth();
   const queryClient = useQueryClient();
 
@@ -47,9 +35,7 @@ export function PromptsForm({ prompt, onClose, onSuccess }: PromptsFormProps) {
     resolver: zodResolver(promptSchema),
     defaultValues: {
       prompt_name: prompt?.prompt_name || "",
-      first_message: prompt?.first_message || "",
       system_prompt: prompt?.system_prompt || "",
-      variables: prompt?.variables || [],
     },
   });
 
@@ -59,9 +45,7 @@ export function PromptsForm({ prompt, onClose, onSuccess }: PromptsFormProps) {
 
       const promptData = {
         prompt_name: data.prompt_name,
-        first_message: data.first_message,
         system_prompt: data.system_prompt,
-        variables: variables,
       };
 
       if (prompt?.id) {
@@ -102,31 +86,6 @@ export function PromptsForm({ prompt, onClose, onSuccess }: PromptsFormProps) {
     setIsLoading(false);
   };
 
-  const addVariable = () => {
-    if (newVariable.name && newVariable.description) {
-      // Check if variable name already exists
-      if (variables.some(v => v.name.toLowerCase() === newVariable.name.toLowerCase())) {
-        toast.error("Variable dengan nama ini sudah wujud!");
-        return;
-      }
-      
-      setVariables([...variables, newVariable]);
-      setNewVariable({ name: "", description: "" });
-      toast.success("Variable berjaya ditambah!");
-    }
-  };
-
-  const removeVariable = (index: number) => {
-    setVariables(variables.filter((_, i) => i !== index));
-    toast.success("Variable berjaya dipadam!");
-  };
-
-  const copyVariableToClipboard = (variableName: string) => {
-    const variableFormat = `{{${variableName}}}`;
-    navigator.clipboard.writeText(variableFormat);
-    toast.success(`Variable ${variableFormat} disalin!`);
-  };
-
   return (
     <Card className="w-full max-w-4xl">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -147,110 +106,12 @@ export function PromptsForm({ prompt, onClose, onSuccess }: PromptsFormProps) {
                 <FormItem>
                   <FormLabel>Nama Prompt</FormLabel>
                   <FormControl>
-                    <Input 
-                      placeholder="Contoh: Skrip Jualan VTEC Promo" 
-                      {...field} 
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            {/* Variables Section */}
-            <div className="space-y-4">
-              <Separator />
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Variables</h3>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
-                  <Info className="h-4 w-4" />
-                  <span>Gunakan variables dalam prompt dengan format: {`{{nama_variable}}`}</span>
-                </div>
-                
-                {/* Add new variable */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <Input
-                    placeholder="Nama variable (contoh: customer_name)"
-                    value={newVariable.name}
-                    onChange={(e) => setNewVariable({...newVariable, name: e.target.value})}
-                  />
-                  <div className="flex gap-2">
                     <Input
-                      placeholder="Penerangan variable"
-                      value={newVariable.description}
-                      onChange={(e) => setNewVariable({...newVariable, description: e.target.value})}
-                    />
-                    <Button 
-                      type="button" 
-                      size="sm" 
-                      onClick={addVariable}
-                      disabled={!newVariable.name || !newVariable.description}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Variables list */}
-                {variables.length > 0 && (
-                  <div className="space-y-2">
-                    {variables.map((variable, index) => (
-                      <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div className="flex items-center gap-3 flex-1">
-                          <Badge 
-                            variant="secondary" 
-                            className="cursor-pointer"
-                            onClick={() => copyVariableToClipboard(variable.name)}
-                          >
-                            {`{{${variable.name}}}`}
-                          </Badge>
-                          <span className="text-sm text-muted-foreground">{variable.description}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => copyVariableToClipboard(variable.name)}
-                          >
-                            <Copy className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeVariable(index)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <Separator />
-            </div>
-
-            <FormField
-              control={form.control}
-              name="first_message"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Mesej Pertama</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder="Contoh: Assalamualaikum, ni {{customer_name}} kan?"
-                      className="min-h-[100px]"
-                      {...field} 
+                      placeholder="Contoh: Skrip Jualan VTEC Promo"
+                      {...field}
                     />
                   </FormControl>
                   <FormMessage />
-                  {variables.length > 0 && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Available variables: {variables.map(v => `{{${v.name}}}`).join(', ')}
-                    </div>
-                  )}
                 </FormItem>
               )}
             />
@@ -262,18 +123,16 @@ export function PromptsForm({ prompt, onClose, onSuccess }: PromptsFormProps) {
                 <FormItem>
                   <FormLabel>Skrip Sistem (System Prompt)</FormLabel>
                   <FormControl>
-                    <Textarea 
-                      placeholder="Masukkan keseluruhan skrip panggilan anda di sini..."
+                    <Textarea
+                      placeholder="Masukkan keseluruhan skrip panggilan anda di sini...&#10;&#10;Gunakan variables: {{name}}, {{phone}}, {{product}}, {{info}}"
                       className="min-h-[400px] font-mono text-sm"
-                      {...field} 
+                      {...field}
                     />
                   </FormControl>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    <strong>Auto-replaced variables:</strong> {{`{{name}}`}} (contact name), {{`{{phone}}`}} (phone number), {{`{{product}}`}} (product), {{`{{info}}`}} (info)
+                  </div>
                   <FormMessage />
-                  {variables.length > 0 && (
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Available variables: {variables.map(v => `{{${v.name}}}`).join(', ')}
-                    </div>
-                  )}
                 </FormItem>
               )}
             />
