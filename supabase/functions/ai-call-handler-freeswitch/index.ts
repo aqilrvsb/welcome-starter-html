@@ -169,12 +169,15 @@ async function handleBatchCall(req: Request): Promise<Response> {
 
     if (!prompt) throw new Error('Prompt not found');
 
+    // Validate campaign name - use default if blank
+    const validCampaignName = campaignName?.trim() || `Campaign ${new Date().toISOString().split('T')[0]}`;
+
     // Create campaign
     const { data: campaign, error: campaignError } = await supabaseAdmin
       .from('campaigns')
       .insert({
         user_id: userId,
-        campaign_name: campaignName,
+        campaign_name: validCampaignName,
         prompt_id: prompt.id,
         status: 'in_progress',
         total_numbers: phoneNumbers.length,
@@ -191,7 +194,13 @@ async function handleBatchCall(req: Request): Promise<Response> {
     // Process calls
     const results = await Promise.all(phoneNumbers.map(async (phoneNumber: string) => {
       try {
-        const cleanNumber = phoneNumber.replace(/\D/g, '');
+        // Clean phone number: Remove non-digits, then handle Malaysian format
+        let cleanNumber = phoneNumber.replace(/\D/g, '');
+
+        // Convert +60XXXXXXXXX or 60XXXXXXXXX to 0XXXXXXXXX (Malaysian format)
+        if (cleanNumber.startsWith('60') && cleanNumber.length >= 10) {
+          cleanNumber = '0' + cleanNumber.substring(2);
+        }
         const callId = await originateCallWithAudioStream({
           phoneNumber: cleanNumber,
           userId,
@@ -206,10 +215,11 @@ async function handleBatchCall(req: Request): Promise<Response> {
         const initialStage = firstStageMatch ? firstStageMatch[1].trim() : null;
 
         // 📇 Look up contact by phone number to get contact_id for variable replacement
+        // Try to match with both cleaned number and original number
         const { data: contact } = await supabaseAdmin
           .from('contacts')
           .select('id')
-          .eq('phone_number', phoneNumber)
+          .or(`phone_number.eq.${cleanNumber},phone_number.eq.${phoneNumber}`)
           .eq('user_id', userId)
           .maybeSingle();
 
@@ -217,7 +227,7 @@ async function handleBatchCall(req: Request): Promise<Response> {
           campaign_id: campaign.id,
           user_id: userId,
           call_id: callId,
-          phone_number: phoneNumber,
+          phone_number: cleanNumber, // Store normalized number
           contact_id: contact?.id || null, // Link to contact if found
           status: 'initiated',
           stage_reached: initialStage, // Set initial stage from prompt
