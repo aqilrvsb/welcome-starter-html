@@ -56,6 +56,8 @@ export function PhoneConfigForm() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [accountType, setAccountType] = useState<'trial' | 'pro'>('trial');
+  const [claimingTrial, setClaimingTrial] = useState(false);
+  const [trialClaimed, setTrialClaimed] = useState(false);
 
   const form = useForm<PhoneConfigFormData>({
     resolver: zodResolver(phoneConfigSchema),
@@ -84,12 +86,26 @@ export function PhoneConfigForm() {
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
-      
+
       if (error) throw error;
       return data as PhoneConfigData | null;
     },
     enabled: !!user,
   });
+
+  // Check if user has claimed trial
+  useEffect(() => {
+    if (user) {
+      supabase
+        .from('users')
+        .select('trial_credits_claimed')
+        .eq('id', user.id)
+        .single()
+        .then(({ data }) => {
+          setTrialClaimed(data?.trial_credits_claimed || false);
+        });
+    }
+  }, [user]);
 
   // Auto-populate form when data is loaded
   useEffect(() => {
@@ -177,6 +193,43 @@ export function PhoneConfigForm() {
     saveMutation.mutate(data);
   };
 
+  const handleClaimTrial = async () => {
+    if (!user || trialClaimed) return;
+
+    try {
+      setClaimingTrial(true);
+
+      const { data, error } = await supabase.rpc('claim_trial_credits', {
+        p_user_id: user.id
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: 'Trial Credits Claimed!',
+          description: data.message,
+        });
+        setTrialClaimed(true);
+        queryClient.invalidateQueries({ queryKey: ['credits-balance', user.id] });
+      } else {
+        toast({
+          title: 'Already Claimed',
+          description: data.message,
+          variant: 'destructive',
+        });
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to claim trial credits',
+        variant: 'destructive',
+      });
+    } finally {
+      setClaimingTrial(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card>
@@ -208,16 +261,16 @@ export function PhoneConfigForm() {
           )}
         </CardTitle>
         <CardDescription>
-          Configure your AlienVOIP SIP trunk and MikoPBX server for AI voice calls.
+          Configure your SIP trunk for AI voice calls.
         </CardDescription>
       </CardHeader>
       <CardContent>
         <Alert className="mb-6 border-blue-200 bg-blue-50">
           <Info className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-sm text-blue-800">
-            <strong>Free Trial:</strong> 10 minutes of free calling to test the system.
+            <strong>Free Trial:</strong> Get 10 minutes free (one-time only) to test the system.
             <br />
-            <strong>Pro Account:</strong> Only RM0.15 per minute - much cheaper than alternatives!
+            <strong>Pro Account:</strong> Only RM0.15 per minute - pay as you go!
           </AlertDescription>
         </Alert>
 
@@ -240,6 +293,39 @@ export function PhoneConfigForm() {
               </Label>
             </div>
           </RadioGroup>
+
+          {/* Trial Credits Claim Button */}
+          {accountType === 'trial' && (
+            <div className="mt-4 pt-4 border-t">
+              {trialClaimed ? (
+                <Alert className="border-green-200 bg-green-50">
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-800">
+                    Trial credits already claimed! You received 10 minutes (RM1.50) free.
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <Button
+                  onClick={handleClaimTrial}
+                  disabled={claimingTrial}
+                  className="w-full"
+                  variant="default"
+                >
+                  {claimingTrial ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Claiming...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="mr-2 h-4 w-4" />
+                      Claim 10 Minutes Free Trial
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         <Form {...form}>
@@ -327,13 +413,13 @@ export function PhoneConfigForm() {
                 <div className="p-4 border rounded-lg">
                   <div className="flex items-center gap-2 mb-4">
                     <Phone className="h-5 w-5" />
-                    <h3 className="font-semibold">SIP Trunk (AlienVOIP)</h3>
+                    <h3 className="font-semibold">SIP Trunk Configuration</h3>
                   </div>
 
                   <Alert className="mb-4 border-green-200 bg-green-50">
                     <Info className="h-4 w-4 text-green-600" />
                     <AlertDescription className="text-sm text-green-800">
-                      Enter your AlienVOIP SIP credentials. Each user has their own SIP account.
+                      Enter your SIP trunk credentials. Each user has their own SIP account.
                     </AlertDescription>
                   </Alert>
 

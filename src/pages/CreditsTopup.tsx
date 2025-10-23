@@ -190,7 +190,7 @@ export default function CreditsTopup() {
             <p className="font-medium">Pricing: RM 0.15 per minute</p>
             <p className="text-sm">
               This includes AI voice processing, speech recognition, and text-to-speech.
-              Much cheaper than VAPI! 🎉
+              Affordable and cost-effective! 🎉
             </p>
           </div>
         </AlertDescription>

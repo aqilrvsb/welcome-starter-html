@@ -385,7 +385,7 @@ export function CallLogsTable() {
           </DialogHeader>
           <ScrollArea className="flex-1 -mr-4 pr-4">
             <div className="space-y-3 sm:space-y-4">
-              {/* Real Error dari VAPI/Twilio */}
+              {/* Real Error Details */}
               {endedReason && (
                 <div className="p-3 sm:p-4 bg-destructive/10 border border-destructive/20 rounded-md">
                   <h3 className="font-semibold text-destructive mb-2 text-xs sm:text-sm flex items-center gap-1.5">
@@ -656,10 +656,10 @@ export function CallLogsTable() {
                     <TableCell>
                       <div className="space-y-1">
                         <div className="text-xs font-medium">
-                          VAPI: ${(log.metadata?.vapi_cost || 0).toFixed(4)}
+                          Voice: ${(log.metadata?.vapi_cost || 0).toFixed(4)}
                         </div>
                         <div className="text-xs font-medium">
-                          Twilio: ${(log.metadata?.twilio_cost || 0).toFixed(4)}
+                          Telephony: ${(log.metadata?.twilio_cost || 0).toFixed(4)}
                         </div>
                         <div className="text-xs text-muted-foreground border-t pt-1">
                           Total: ${(log.metadata?.total_cost || log.metadata?.call_cost || 0).toFixed(4)}
@@ -730,10 +730,10 @@ export function CallLogsTable() {
                       <span className="text-muted-foreground">Cost:</span>
                       <div className="space-y-1">
                          <div className="text-xs">
-                           VAPI: ${(log.metadata?.vapi_cost || 0).toFixed(4)}
+                           Voice: ${(log.metadata?.vapi_cost || 0).toFixed(4)}
                          </div>
                          <div className="text-xs">
-                           Twilio: ${(log.metadata?.twilio_cost || 0).toFixed(4)}
+                           Telephony: ${(log.metadata?.twilio_cost || 0).toFixed(4)}
                          </div>
                          <div className="font-medium text-xs border-t pt-1">
                            Total: ${(log.metadata?.total_cost || log.metadata?.call_cost || 0).toFixed(4)}
