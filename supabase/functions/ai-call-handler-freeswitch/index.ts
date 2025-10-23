@@ -269,14 +269,11 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
   await readESLResponse(conn);
 
   // Build originate command - first originate and park, then start audio_stream
-  // 🎙️ CALL RECORDING: Use ${uuid} variable for recording path (FreeSWITCH will substitute it)
-  const recordingPath = `/var/www/html/recordings/\${uuid}.wav`;
   const vars = [
     `user_id=${userId}`,
     `campaign_id=${campaignId}`,
     `prompt_id=${promptId}`,
     `origination_caller_id_number=${phoneNumber}`,
-    `execute_on_answer=record_session ${recordingPath}`, // Start recording when answered
   ].join(',');
 
   // Originate and park the call first
@@ -298,7 +295,6 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
 
   const callId = uuidMatch[1];
   console.log(`✅ Call UUID: ${callId}`);
-  console.log(`🎙️ Recording will be saved to: /var/www/html/recordings/${callId}.wav`);
 
   // Now start audio streaming on the parked call
   // uuid_audio_stream <uuid> start <wss-url> [mono|mixed|stereo] [8000|16000] [metadata]
