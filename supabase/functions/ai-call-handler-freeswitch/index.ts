@@ -223,15 +223,23 @@ async function handleBatchCall(req: Request): Promise<Response> {
           .eq('user_id', userId)
           .maybeSingle();
 
-        await supabaseAdmin.from('call_logs').insert({
+        const { error: insertError } = await supabaseAdmin.from('call_logs').insert({
           campaign_id: campaign.id,
           user_id: userId,
           call_id: callId,
           phone_number: cleanNumber, // Store normalized number
+          caller_number: cleanNumber, // Required field
+          agent_id: promptId, // Use prompt ID as agent identifier
+          start_time: new Date().toISOString(), // Required field
           contact_id: contact?.id || null, // Link to contact if found
           status: 'initiated',
           stage_reached: initialStage, // Set initial stage from prompt
         });
+
+        if (insertError) {
+          console.error('❌ Failed to create call log:', insertError);
+          throw new Error(`Failed to create call log: ${insertError.message}`);
+        }
 
         return { success: true, phoneNumber, callId };
       } catch (error) {
