@@ -82,13 +82,14 @@ export function CallLogsTable() {
       if (!user) return [];
       
       // Build query with filtering and sorting, joining with contacts, campaigns, and prompts
+      // Note: prompts is now a direct relationship via prompt_id column
       let query = supabase
         .from('call_logs')
         .select(`
           *,
           contacts(name, product),
           campaigns(campaign_name),
-          prompts(prompt_name)
+          prompts!call_logs_prompt_id_fkey(prompt_name)
         `)
         .eq('user_id', user.id);
 

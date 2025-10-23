@@ -236,6 +236,7 @@ async function handleBatchCall(req: Request): Promise<Response> {
           phone_number: cleanNumber, // Store normalized number
           caller_number: cleanNumber, // Required field
           agent_id: promptId, // Use prompt ID as agent identifier
+          prompt_id: promptId, // Direct reference to prompt (required for optional campaigns)
           start_time: new Date().toISOString(), // Required field
           contact_id: contact?.id || null, // Link to contact if found
           status: 'initiated',
