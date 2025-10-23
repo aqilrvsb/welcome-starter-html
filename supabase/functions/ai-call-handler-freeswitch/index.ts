@@ -205,11 +205,20 @@ async function handleBatchCall(req: Request): Promise<Response> {
         const firstStageMatch = prompt.system_prompt?.match(stageRegex);
         const initialStage = firstStageMatch ? firstStageMatch[1].trim() : null;
 
+        // 📇 Look up contact by phone number to get contact_id for variable replacement
+        const { data: contact } = await supabaseAdmin
+          .from('contacts')
+          .select('id')
+          .eq('phone_number', phoneNumber)
+          .eq('user_id', userId)
+          .maybeSingle();
+
         await supabaseAdmin.from('call_logs').insert({
           campaign_id: campaign.id,
           user_id: userId,
           call_id: callId,
           phone_number: phoneNumber,
+          contact_id: contact?.id || null, // Link to contact if found
           status: 'initiated',
           stage_reached: initialStage, // Set initial stage from prompt
         });
