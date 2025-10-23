@@ -89,13 +89,39 @@ export function AudioPlayerDialog({ recordingUrl, triggerButton, title = "Rakama
     audio.currentTime = Math.max(audio.currentTime - 10, 0);
   };
 
-  const downloadRecording = () => {
-    const link = document.createElement('a');
-    link.href = recordingUrl;
-    link.download = `recording-${Date.now()}.mp3`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const downloadRecording = async () => {
+    try {
+      // Fetch the audio file with credentials
+      const response = await fetch(recordingUrl, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          'Accept': 'audio/*',
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to download: ${response.status}`);
+      }
+
+      // Get the blob from response
+      const blob = await response.blob();
+
+      // Create blob URL and download
+      const blobUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = `recording-${Date.now()}.mp3`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      // Clean up blob URL
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error('Download error:', error);
+      setError('Gagal memuat turun rakaman. Cuba buka di tab baru.');
+    }
   };
 
   const formatTime = (time: number) => {
@@ -242,16 +268,8 @@ export function AudioPlayerDialog({ recordingUrl, triggerButton, title = "Rakama
             />
           </div>
 
-          {/* Open/Download Buttons */}
-          <div className="flex justify-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => window.open(recordingUrl, '_blank')}
-              className="flex items-center gap-2"
-            >
-              <Play className="h-4 w-4" />
-              Buka di Tab Baru
-            </Button>
+          {/* Download Button */}
+          <div className="flex justify-center">
             <Button
               variant="outline"
               onClick={downloadRecording}
