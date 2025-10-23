@@ -11,7 +11,6 @@ import {
   XCircle,
   Users,
   PhoneOff,
-  Layers,
   Wallet
 } from 'lucide-react';
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
@@ -39,7 +38,6 @@ const navigationItems = [
   { title: 'Credits Top-Up', url: '/credits-topup', icon: Wallet },
   { title: 'Contacts', url: '/contacts', icon: Users },
   { title: 'Campaigns', url: '/campaigns', icon: BarChart3 },
-  { title: 'Campaign Batch', url: '/campaign-batch', icon: Layers },
   { title: 'Call Logs', url: '/call-logs', icon: Phone },
   { title: 'Failed Calls', url: '/failed-calls', icon: PhoneOff },
   { title: 'Prompts', url: '/prompts', icon: Bot },
