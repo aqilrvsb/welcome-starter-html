@@ -4,19 +4,16 @@ import { Button } from '@/components/ui/button';
 import {
   TrendingUp,
   CheckCircle,
-  XCircle,
-  BarChart3,
-  DollarSign,
-  AlertCircle,
-  CalendarDays
+  AlertCircle
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { StatsCards } from '@/components/analytics/StatsCards';
+import { CallStatsChart } from '@/components/analytics/CallStatsChart';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { 
-  isCallSuccessful, 
+import {
+  isCallSuccessful,
   isCallFailed
 } from '@/lib/statusUtils';
 import { EndCallReasonStats } from '@/components/analytics/EndCallReasonStats';
@@ -31,21 +28,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { FailedCallsTable } from '@/components/call-logs/FailedCallsTable';
 
 export default function Dashboard() {
   const { user } = useCustomAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
-  
-  // Initialize filters with today as default
+
+  // Initialize filters with today as default (both from and to)
   const today = new Date().toISOString().split('T')[0];
   const [filters, setFilters] = useState<DashboardFiltersType>({
     search: '',
-    dateFrom: '',
+    dateFrom: today,
     dateTo: today
   });
 
@@ -142,15 +136,9 @@ export default function Dashboard() {
     retry: 2,
   });
 
-  // Apply search filtering
-  const filteredCampaigns = campaignsData?.filter(campaign => 
-    campaign.campaign_name?.toLowerCase().includes(filters.search.toLowerCase())
-  ) || [];
-
-  const filteredCallLogs = callLogsData?.filter(log => 
-    log.caller_number?.toLowerCase().includes(filters.search.toLowerCase()) ||
-    log.phone_number?.toLowerCase().includes(filters.search.toLowerCase())
-  ) || [];
+  // No search filtering needed
+  const filteredCampaigns = campaignsData || [];
+  const filteredCallLogs = callLogsData || [];
 
   // Calculate stats with improved logic
   const stats = {
@@ -215,56 +203,53 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Tabs Navigation */}
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
-              <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="failed">Failed Calls</TabsTrigger>
-            </TabsList>
+          {/* Dashboard Content */}
+          <div className="space-y-6">
+            {/* Dashboard Filters */}
+            <DashboardFilters
+              filters={filters}
+              onFiltersChange={setFilters}
+              totalCampaigns={stats.totalCampaigns}
+              totalCalls={stats.totalCalls}
+              totalContacts={stats.totalContacts}
+            />
 
-            <TabsContent value="overview" className="space-y-6 mt-6">
-              {/* Dashboard Filters */}
-              <DashboardFilters 
-                filters={filters}
-                onFiltersChange={setFilters}
-                totalCampaigns={stats.totalCampaigns}
-                totalCalls={stats.totalCalls}
-                totalContacts={stats.totalContacts}
-              />
+            {/* Error Alert */}
+            {hasErrors && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Unable to load dashboard data. Please refresh the page or try again later.
+                </AlertDescription>
+              </Alert>
+            )}
 
-              {/* Error Alert */}
-              {hasErrors && (
-                <Alert variant="destructive" className="mb-6">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertDescription>
-                    Unable to load dashboard data. Please refresh the page or try again later.
-                  </AlertDescription>
-                </Alert>
-              )}
+            {/* Stats Cards */}
+            <StatsCards
+              stats={stats}
+              isLoading={campaignsLoading || callLogsLoading || contactsLoading}
+            />
 
-              {/* Stats Cards */}
-              <StatsCards 
-                stats={stats} 
-                isLoading={campaignsLoading || callLogsLoading || contactsLoading} 
-              />
+            {/* Call Statistics Bar Chart */}
+            <CallStatsChart
+              totalCalls={stats.totalCalls}
+              answeredCalls={stats.successfulCalls}
+              notAnsweredCalls={stats.failedCalls}
+              isLoading={callLogsLoading}
+            />
 
-              {/* End Call Reason Stats */}
-              <EndCallReasonStats 
-                callLogs={filteredCallLogs} 
-                isLoading={callLogsLoading} 
-              />
+            {/* End Call Reason Stats */}
+            <EndCallReasonStats
+              callLogs={filteredCallLogs}
+              isLoading={callLogsLoading}
+            />
 
-              {/* Stage Analytics */}
-              <StageAnalytics 
-                callLogs={filteredCallLogs} 
-                isLoading={callLogsLoading} 
-              />
-            </TabsContent>
-
-            <TabsContent value="failed" className="mt-6">
-              <FailedCallsTable />
-            </TabsContent>
-          </Tabs>
+            {/* Stage Analytics */}
+            <StageAnalytics
+              callLogs={filteredCallLogs}
+              isLoading={callLogsLoading}
+            />
+          </div>
 
           {/* Getting Started (show only if no campaigns) */}
           {(!filteredCampaigns || filteredCampaigns.length === 0) && !campaignsLoading && (

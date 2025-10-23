@@ -56,20 +56,8 @@ export function DashboardFilters({
   return (
     <Card>
       <CardContent className="p-4 space-y-4">
-        {/* Search and Toggle */}
-        <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
-          <div className="flex-1 max-w-md">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search campaigns and call logs..."
-                value={filters.search}
-                onChange={(e) => updateFilter('search', e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-          
+        {/* Filter Toggle */}
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Button
               variant={showFilters ? "secondary" : "outline"}
@@ -78,14 +66,14 @@ export function DashboardFilters({
               className="flex items-center gap-2"
             >
               <Filter className="h-4 w-4" />
-              Filters
+              Date Filters
               {hasActiveFilters && (
                 <Badge variant="secondary" className="ml-1 text-xs">
                   {activeFiltersCount}
                 </Badge>
               )}
             </Button>
-            
+
             {hasActiveFilters && (
               <Button variant="ghost" size="sm" onClick={clearFilters}>
                 <X className="h-4 w-4" />
@@ -124,27 +112,6 @@ export function DashboardFilters({
             </div>
           </div>
         )}
-
-        {/* Results Summary */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-sm text-muted-foreground pt-2 border-t">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-            <span>
-              {totalCampaigns} campaigns • {totalCalls} calls
-            </span>
-            
-            {totalContacts > 0 && (
-              <span className="font-medium">
-                Total Contacts: {totalContacts}
-              </span>
-            )}
-          </div>
-          
-          {hasActiveFilters && (
-            <Button variant="link" size="sm" onClick={clearFilters} className="h-auto p-0">
-              Clear all filters
-            </Button>
-          )}
-        </div>
       </CardContent>
     </Card>
   );
