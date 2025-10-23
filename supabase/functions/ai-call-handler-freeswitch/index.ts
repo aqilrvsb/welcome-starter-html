@@ -646,24 +646,29 @@ async function speakToCall(session: any, text: string) {
 
               audioChunks.push(new Uint8Array(pcm8k.buffer));
 
-              // Start playing IMMEDIATELY on first chunk (streaming advantage!)
-              if (!hasStartedPlaying && audioChunks.length > 0) {
+              // Log first chunk received (for latency tracking)
+              if (!hasStartedPlaying) {
                 hasStartedPlaying = true;
                 const latency = Date.now() - streamStartTime;
-                console.log(`⚡ First audio chunk received in ${latency}ms - starting playback!`);
-
-                // Start playback of accumulated chunks while more are still streaming
-                playAudioChunks(session, audioChunks).catch(reject);
+                console.log(`⚡ First audio chunk received in ${latency}ms`);
               }
             }
 
             if (message.isFinal) {
-              console.log(`✅ ElevenLabs streaming complete`);
+              console.log(`✅ ElevenLabs streaming complete - received ${audioChunks.length} chunks`);
+
+              // Play ALL accumulated chunks now that streaming is complete
+              if (audioChunks.length > 0) {
+                await playAudioChunks(session, audioChunks);
+              }
+
               ws.close();
+              resolve();
             }
           }
         } catch (error) {
           console.error("❌ Error processing streaming chunk:", error);
+          reject(error);
         }
       };
 
@@ -675,8 +680,9 @@ async function speakToCall(session: any, text: string) {
       };
 
       ws.onclose = () => {
-        // Ensure all audio chunks are played
-        if (audioChunks.length > 0 && !hasStartedPlaying) {
+        // Fallback: if we have chunks but isFinal wasn't received
+        if (audioChunks.length > 0) {
+          console.log(`⚠️  WebSocket closed, playing ${audioChunks.length} accumulated chunks`);
           playAudioChunks(session, audioChunks)
             .then(resolve)
             .catch(reject);
