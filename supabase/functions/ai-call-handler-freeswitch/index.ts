@@ -339,17 +339,10 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
   const callId = uuidMatch[1];
   console.log(`✅ Call UUID: ${callId}`);
 
-  // Start recording this call - recordings saved in /usr/local/freeswitch/recordings/
+  // Prepare recording filename (will be started when customer answers)
   const recordingFilename = `${callId}_${Date.now()}.wav`;
   const recordingPath = `/usr/local/freeswitch/recordings/${recordingFilename}`;
   const recordingUrl = `http://159.223.45.224/recordings/${recordingFilename}`;
-
-  const recordCmd = `api uuid_record ${callId} start ${recordingPath}`;
-  console.log(`🎙️ Starting recording: ${recordCmd}`);
-
-  await sendESLCommand(conn, recordCmd);
-  const recordResponse = await readESLResponse(conn);
-  console.log(`📋 Recording Response: ${recordResponse}`);
 
   // Now start audio streaming on the parked call
   // uuid_audio_stream <uuid> start <wss-url> [mono|mixed|stereo] [8000|16000] [metadata]
@@ -359,6 +352,7 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
     user_id: userId,
     prompt_id: promptId,
     recording_url: recordingUrl,
+    recording_path: recordingPath, // Pass recording path to start later when answered
   };
 
   if (campaignId) {
@@ -430,6 +424,33 @@ async function monitorCallAnswerEvent(callId: string, websocketUrl: string) {
 
         if (session && !session.hasGreeted) {
           session.isCallAnswered = true;
+
+          // 🎙️ Start recording now that customer has answered
+          if (session.recordingPath) {
+            try {
+              const recordConn = await Deno.connect({
+                hostname: FREESWITCH_HOST,
+                port: FREESWITCH_ESL_PORT,
+              });
+
+              await readESLResponse(recordConn);
+              await sendESLCommand(recordConn, `auth ${FREESWITCH_ESL_PASSWORD}`);
+              await readESLResponse(recordConn);
+
+              const recordCmd = `api uuid_record ${callId} start ${session.recordingPath}`;
+              console.log(`🎙️ Starting recording (customer answered): ${recordCmd}`);
+
+              await sendESLCommand(recordConn, recordCmd);
+              const recordResponse = await readESLResponse(recordConn);
+              console.log(`📋 Recording Response: ${recordResponse}`);
+
+              recordConn.close();
+            } catch (recordError) {
+              console.error(`❌ Failed to start recording:`, recordError);
+            }
+          } else {
+            console.log(`⚠️ No recording path found in session`);
+          }
 
           // 📊 Update status to "answered"
           await updateCallStatus(callId, 'answered');
@@ -510,10 +531,11 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
   const campaignId = metadata.campaign_id || '';
   const promptId = metadata.prompt_id || '';
   const recordingUrl = metadata.recording_url || null;
+  const recordingPath = metadata.recording_path || null;
 
   console.log(`📞 Call started: ${callId}`);
   if (recordingUrl) {
-    console.log(`🎙️ Recording URL from metadata: ${recordingUrl}`);
+    console.log(`🎙️ Recording will be saved to: ${recordingUrl}`);
   }
 
   // Fetch voice config and prompts (same as Twilio code)
@@ -623,6 +645,7 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
     costs: { azure_stt: 0, llm: 0, tts: 0 },
     audioFileCounter: 0, // Track temp file numbers for playback
     recordingUrl: recordingUrl, // Store recording URL from metadata
+    recordingPath: recordingPath, // Store recording path to start recording when answered
     // 🎯 STAGE TRACKING
     stages: stages, // All available stages from prompt
     currentStage: stages.length > 0 ? stages[0] : null, // Start with first stage
