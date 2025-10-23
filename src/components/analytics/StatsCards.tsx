@@ -1,14 +1,14 @@
 import { Card, CardContent } from '@/components/ui/card';
-import { 
-  Bot, 
-  Phone, 
-  Zap, 
-  TrendingUp, 
-  TrendingDown, 
-  CheckCircle, 
+import {
+  Bot,
+  Phone,
+  Zap,
+  TrendingUp,
+  TrendingDown,
+  CheckCircle,
   XCircle,
   Users,
-  DollarSign
+  Clock
 } from 'lucide-react';
 
 interface StatsCardsProps {
@@ -85,9 +85,9 @@ export function StatsCards({ stats, isLoading }: StatsCardsProps) {
       trend: stats.trendsData?.contactsTrend || 0,
     },
     {
-      title: 'Total VAPI Cost',
-      value: `$${stats.totalCost.toFixed(2)}`,
-      icon: DollarSign,
+      title: 'Total Minutes',
+      value: `${(stats.totalCost / 0.15).toFixed(1)} min`,
+      icon: Clock,
       gradient: 'bg-amber-500',
       trend: 0,
     },
