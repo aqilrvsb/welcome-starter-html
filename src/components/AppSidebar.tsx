@@ -10,7 +10,6 @@ import {
   Clock,
   XCircle,
   Users,
-  PhoneOff,
   Wallet
 } from 'lucide-react';
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
@@ -39,7 +38,6 @@ const navigationItems = [
   { title: 'Contacts', url: '/contacts', icon: Users },
   { title: 'Campaigns', url: '/campaigns', icon: BarChart3 },
   { title: 'Call Logs', url: '/call-logs', icon: Phone },
-  { title: 'Failed Calls', url: '/failed-calls', icon: PhoneOff },
   { title: 'Prompts', url: '/prompts', icon: Bot },
   { title: 'Settings', url: '/settings', icon: Settings },
 ];
