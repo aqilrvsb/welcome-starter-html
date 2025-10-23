@@ -13,24 +13,19 @@ const contactSchema = z.object({
   name: z.string().trim().min(1, "Name is required").max(100, "Name must be less than 100 characters"),
   phoneNumber: z.string().trim().min(1, "Phone number is required").max(20, "Phone number must be less than 20 characters")
     .transform((val) => {
-      // Auto-add +60 if not present and it's a Malaysian number
-      if (val && !val.startsWith('+')) {
-        // Remove any leading zeros and non-digits for processing
-        const cleanNumber = val.replace(/\D/g, '');
+      // Convert Malaysian numbers: +60/60 → 0 prefix
+      let cleanNumber = val.replace(/\D/g, ''); // Remove non-digits
 
-        // If it starts with 60, assume it's already formatted without +
-        if (cleanNumber.startsWith('60')) {
-          return '+' + cleanNumber;
-        }
-        // If it's a Malaysian mobile number (starts with 1, 01, etc.)
-        else if (cleanNumber.startsWith('1') || cleanNumber.startsWith('01') ||
-                 cleanNumber.length >= 9 && cleanNumber.length <= 11) {
-          // Remove leading zero if present
-          const numberWithoutZero = cleanNumber.startsWith('0') ? cleanNumber.slice(1) : cleanNumber;
-          return '+60' + numberWithoutZero;
-        }
+      // Convert +60XXXXXXXXX or 60XXXXXXXXX to 0XXXXXXXXX (Malaysian format)
+      if (cleanNumber.startsWith('60') && cleanNumber.length >= 10) {
+        cleanNumber = '0' + cleanNumber.substring(2);
       }
-      return val;
+      // Ensure number starts with 0 if it doesn't already
+      else if (!cleanNumber.startsWith('0') && cleanNumber.length >= 9) {
+        cleanNumber = '0' + cleanNumber;
+      }
+
+      return cleanNumber;
     }),
   product: z.string().trim().max(100, "Product must be less than 100 characters").optional(),
   info: z.string().trim().max(500, "Info must be less than 500 characters").optional(),
@@ -129,7 +124,7 @@ export function ContactForm({ userId, onSuccess }: ContactFormProps) {
                 />
               </FormControl>
               <div className="text-xs text-muted-foreground">
-                Malaysian numbers will automatically get +60 prefix
+                Numbers will be auto-formatted to Malaysian format (0XXXXXXXXX)
               </div>
               <FormMessage />
             </FormItem>

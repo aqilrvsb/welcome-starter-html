@@ -225,7 +225,7 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
     try {
       // Validate the form data
       const validationResult = editContactSchema.safeParse(editFormData);
-      
+
       if (!validationResult.success) {
         const errors: { name?: string; phone_number?: string } = {};
         validationResult.error.errors.forEach(error => {
@@ -237,11 +237,19 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
         return;
       }
 
+      // Normalize phone number: Convert +60/60 to 0 prefix
+      let cleanNumber = validationResult.data.phone_number.replace(/\D/g, '');
+      if (cleanNumber.startsWith('60') && cleanNumber.length >= 10) {
+        cleanNumber = '0' + cleanNumber.substring(2);
+      } else if (!cleanNumber.startsWith('0') && cleanNumber.length >= 9) {
+        cleanNumber = '0' + cleanNumber;
+      }
+
       const { error } = await supabase
         .from("contacts")
         .update({
           name: validationResult.data.name,
-          phone_number: validationResult.data.phone_number,
+          phone_number: cleanNumber,
           product: validationResult.data.product || null,
           info: validationResult.data.info || null,
         })
@@ -260,7 +268,7 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
       // Update local state
       setContacts(contacts.map(contact =>
         contact.id === contactId
-          ? { ...contact, name: validationResult.data.name, phone_number: validationResult.data.phone_number, product: validationResult.data.product || null, info: validationResult.data.info || null }
+          ? { ...contact, name: validationResult.data.name, phone_number: cleanNumber, product: validationResult.data.product || null, info: validationResult.data.info || null }
           : contact
       ));
       

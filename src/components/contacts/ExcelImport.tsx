@@ -41,19 +41,19 @@ export function ExcelImport({ userId, onSuccess }: ExcelImportProps) {
   };
 
   const formatPhoneNumber = (phoneNumber: string): string => {
-    // Auto-add +60 prefix for Malaysian numbers
-    if (phoneNumber && !phoneNumber.startsWith('+')) {
-      const cleanNumber = phoneNumber.replace(/\D/g, '');
-      
-      if (cleanNumber.startsWith('60')) {
-        return '+' + cleanNumber;
-      } else if (cleanNumber.startsWith('1') || cleanNumber.startsWith('01') || 
-                 (cleanNumber.length >= 9 && cleanNumber.length <= 11)) {
-        const numberWithoutZero = cleanNumber.startsWith('0') ? cleanNumber.slice(1) : cleanNumber;
-        return '+60' + numberWithoutZero;
-      }
+    // Convert Malaysian numbers: +60/60 → 0 prefix
+    let cleanNumber = phoneNumber.replace(/\D/g, ''); // Remove non-digits
+
+    // Convert +60XXXXXXXXX or 60XXXXXXXXX to 0XXXXXXXXX (Malaysian format)
+    if (cleanNumber.startsWith('60') && cleanNumber.length >= 10) {
+      cleanNumber = '0' + cleanNumber.substring(2);
     }
-    return phoneNumber;
+    // Ensure number starts with 0 if it doesn't already
+    else if (!cleanNumber.startsWith('0') && cleanNumber.length >= 9) {
+      cleanNumber = '0' + cleanNumber;
+    }
+
+    return cleanNumber;
   };
 
   const parseCSV = (text: string): Array<{name: string, phone_number: string, product?: string, info?: string}> => {
