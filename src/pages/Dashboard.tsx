@@ -204,52 +204,90 @@ export default function Dashboard() {
   const voicemailPercent = totalCalls > 0 ? (voicemailCalls / totalCalls * 100).toFixed(1) : '0.0';
   const failedPercent = totalCalls > 0 ? (failedCalls / totalCalls * 100).toFixed(1) : '0.0';
 
-  // Group calls by hour for line chart
+  // Group calls by hour for line chart with all categories
   const callsByHour = Array.from({ length: 24 }, (_, i) => ({
     hour: `${i.toString().padStart(2, '0')}:00`,
-    calls: 0,
+    total: 0,
     answered: 0,
-    unanswered: 0
+    unanswered: 0,
+    failed: 0,
+    voicemail: 0
   }));
 
   callLogsData?.forEach(log => {
     const createdAt = new Date(log.created_at);
     const hour = createdAt.getHours();
-    callsByHour[hour].calls++;
+    callsByHour[hour].total++;
+
     if (log.status === 'answered') {
       callsByHour[hour].answered++;
-    } else if (log.status === 'no_answered' || log.status === 'failed' || log.status === 'voicemail') {
+    } else if (log.status === 'no_answered') {
       callsByHour[hour].unanswered++;
+    } else if (log.status === 'failed') {
+      callsByHour[hour].failed++;
+    } else if (log.status === 'voicemail') {
+      callsByHour[hour].voicemail++;
     }
   });
 
-  // Chart.js configuration
+  // Chart.js configuration with 5 datasets
   const lineChartData = {
     labels: callsByHour.map(d => d.hour),
     datasets: [
       {
         label: 'Total Calls',
-        data: callsByHour.map(d => d.calls),
-        borderColor: 'rgb(59, 130, 246)',
-        backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        tension: 0.4,
-        fill: true,
+        data: callsByHour.map(d => d.total),
+        borderColor: 'rgb(99, 102, 241)', // Primary purple-blue
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+        borderWidth: 3,
+        tension: 0.4, // Smooth curve
+        fill: false,
+        pointRadius: 4,
+        pointHoverRadius: 6,
       },
       {
-        label: 'Answered',
+        label: 'Answered Calls',
         data: callsByHour.map(d => d.answered),
-        borderColor: 'rgb(34, 197, 94)',
+        borderColor: 'rgb(34, 197, 94)', // Success green
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
+        borderWidth: 2,
         tension: 0.4,
-        fill: true,
+        fill: false,
+        pointRadius: 3,
+        pointHoverRadius: 5,
       },
       {
-        label: 'Not Answered',
+        label: 'Unanswered Calls',
         data: callsByHour.map(d => d.unanswered),
-        borderColor: 'rgb(239, 68, 68)',
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderColor: 'rgb(249, 115, 22)', // Orange
+        backgroundColor: 'rgba(249, 115, 22, 0.1)',
+        borderWidth: 2,
         tension: 0.4,
-        fill: true,
+        fill: false,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+      },
+      {
+        label: 'Failed Calls',
+        data: callsByHour.map(d => d.failed),
+        borderColor: 'rgb(239, 68, 68)', // Red
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderWidth: 2,
+        tension: 0.4,
+        fill: false,
+        pointRadius: 3,
+        pointHoverRadius: 5,
+      },
+      {
+        label: 'Voicemail Calls',
+        data: callsByHour.map(d => d.voicemail),
+        borderColor: 'rgb(168, 85, 247)', // Purple
+        backgroundColor: 'rgba(168, 85, 247, 0.1)',
+        borderWidth: 2,
+        tension: 0.4,
+        fill: false,
+        pointRadius: 3,
+        pointHoverRadius: 5,
       },
     ],
   };
@@ -257,14 +295,60 @@ export default function Dashboard() {
   const lineChartOptions = {
     responsive: true,
     maintainAspectRatio: false,
+    interaction: {
+      mode: 'index' as const,
+      intersect: false,
+    },
     plugins: {
-      legend: { position: 'top' as const },
-      title: { display: false },
+      legend: {
+        position: 'top' as const,
+        labels: {
+          usePointStyle: true,
+          padding: 15,
+          font: {
+            size: 12,
+          },
+        },
+      },
+      title: {
+        display: false,
+      },
+      tooltip: {
+        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        padding: 12,
+        titleFont: {
+          size: 14,
+          weight: 'bold' as const,
+        },
+        bodyFont: {
+          size: 13,
+        },
+        bodySpacing: 6,
+        usePointStyle: true,
+      },
     },
     scales: {
       y: {
         beginAtZero: true,
-        ticks: { stepSize: 1 },
+        ticks: {
+          stepSize: 1,
+          font: {
+            size: 11,
+          },
+        },
+        grid: {
+          color: 'rgba(99, 102, 241, 0.1)',
+        },
+      },
+      x: {
+        grid: {
+          display: false,
+        },
+        ticks: {
+          font: {
+            size: 11,
+          },
+        },
       },
     },
   };
