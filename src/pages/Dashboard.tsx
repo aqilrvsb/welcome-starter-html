@@ -206,90 +206,86 @@ export default function Dashboard() {
   const voicemailPercent = totalCalls > 0 ? (voicemailCalls / totalCalls * 100).toFixed(1) : '0.0';
   const failedPercent = totalCalls > 0 ? (failedCalls / totalCalls * 100).toFixed(1) : '0.0';
 
-  // Group calls by hour for line chart with all categories
-  const callsByHour = Array.from({ length: 24 }, (_, i) => ({
-    hour: `${i.toString().padStart(2, '0')}:00`,
-    total: 0,
-    answered: 0,
-    unanswered: 0,
-    failed: 0,
-    voicemail: 0
-  }));
+  // Calculate cumulative totals by call index for comparison
+  const sortedCalls = [...(callLogsData || [])].sort((a, b) =>
+    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+  );
 
-  callLogsData?.forEach(log => {
-    const createdAt = new Date(log.created_at);
-    const hour = createdAt.getHours();
-    callsByHour[hour].total++;
-
-    if (log.status === 'answered') {
-      callsByHour[hour].answered++;
-    } else if (log.status === 'no_answered') {
-      callsByHour[hour].unanswered++;
-    } else if (log.status === 'failed') {
-      callsByHour[hour].failed++;
-    } else if (log.status === 'voicemail') {
-      callsByHour[hour].voicemail++;
-    }
+  const cumulativeData = sortedCalls.map((_, index) => {
+    const callsUpToNow = sortedCalls.slice(0, index + 1);
+    return {
+      index: index + 1,
+      total: index + 1,
+      answered: callsUpToNow.filter(log => log.status === 'answered').length,
+      unanswered: callsUpToNow.filter(log => log.status === 'no_answered').length,
+      failed: callsUpToNow.filter(log => log.status === 'failed').length,
+      voicemail: callsUpToNow.filter(log => log.status === 'voicemail').length,
+    };
   });
 
-  // Chart.js configuration with 5 datasets
+  // Chart.js Multi-Axis configuration comparing cumulative totals
   const lineChartData = {
-    labels: callsByHour.map(d => d.hour),
+    labels: cumulativeData.map(d => `Call ${d.index}`),
     datasets: [
       {
         label: 'Total Calls',
-        data: callsByHour.map(d => d.total),
+        data: cumulativeData.map(d => d.total),
         borderColor: 'rgb(99, 102, 241)', // Primary purple-blue
         backgroundColor: 'rgba(99, 102, 241, 0.1)',
         borderWidth: 3,
         tension: 0.4, // Smooth curve
         fill: false,
-        pointRadius: 4,
-        pointHoverRadius: 6,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+        yAxisID: 'y',
       },
       {
         label: 'Answered Calls',
-        data: callsByHour.map(d => d.answered),
+        data: cumulativeData.map(d => d.answered),
         borderColor: 'rgb(34, 197, 94)', // Success green
         backgroundColor: 'rgba(34, 197, 94, 0.1)',
         borderWidth: 2,
         tension: 0.4,
         fill: false,
-        pointRadius: 3,
+        pointRadius: 2,
         pointHoverRadius: 5,
+        yAxisID: 'y',
       },
       {
         label: 'Unanswered Calls',
-        data: callsByHour.map(d => d.unanswered),
+        data: cumulativeData.map(d => d.unanswered),
         borderColor: 'rgb(249, 115, 22)', // Orange
         backgroundColor: 'rgba(249, 115, 22, 0.1)',
         borderWidth: 2,
         tension: 0.4,
         fill: false,
-        pointRadius: 3,
+        pointRadius: 2,
         pointHoverRadius: 5,
+        yAxisID: 'y',
       },
       {
         label: 'Failed Calls',
-        data: callsByHour.map(d => d.failed),
+        data: cumulativeData.map(d => d.failed),
         borderColor: 'rgb(239, 68, 68)', // Red
         backgroundColor: 'rgba(239, 68, 68, 0.1)',
         borderWidth: 2,
         tension: 0.4,
         fill: false,
-        pointRadius: 3,
+        pointRadius: 2,
         pointHoverRadius: 5,
+        yAxisID: 'y',
       },
       {
         label: 'Voicemail Calls',
-        data: callsByHour.map(d => d.voicemail),
+        data: cumulativeData.map(d => d.voicemail),
         borderColor: 'rgb(168, 85, 247)', // Purple
         backgroundColor: 'rgba(168, 85, 247, 0.1)',
         borderWidth: 2,
         tension: 0.4,
         fill: false,
-        pointRadius: 3,
+        pointRadius: 2,
         pointHoverRadius: 5,
+        yAxisID: 'y',
       },
     ],
   };
@@ -313,7 +309,13 @@ export default function Dashboard() {
         },
       },
       title: {
-        display: false,
+        display: true,
+        text: 'Cumulative Call Comparison',
+        font: {
+          size: 16,
+          weight: 'bold' as const,
+        },
+        color: 'rgb(99, 102, 241)',
       },
       tooltip: {
         backgroundColor: 'rgba(0, 0, 0, 0.8)',
@@ -331,7 +333,19 @@ export default function Dashboard() {
     },
     scales: {
       y: {
+        type: 'linear' as const,
+        display: true,
+        position: 'left' as const,
         beginAtZero: true,
+        title: {
+          display: true,
+          text: 'Number of Calls',
+          font: {
+            size: 12,
+            weight: 'bold' as const,
+          },
+          color: 'rgb(99, 102, 241)',
+        },
         ticks: {
           stepSize: 1,
           font: {
@@ -343,12 +357,29 @@ export default function Dashboard() {
         },
       },
       x: {
+        title: {
+          display: true,
+          text: 'Call Sequence',
+          font: {
+            size: 12,
+            weight: 'bold' as const,
+          },
+          color: 'rgb(99, 102, 241)',
+        },
         grid: {
           display: false,
         },
         ticks: {
           font: {
-            size: 11,
+            size: 10,
+          },
+          maxTicksLimit: 20,
+          callback: function(_value: any, index: number) {
+            // Show every 5th label or first/last
+            if (index === 0 || index === cumulativeData.length - 1 || (index + 1) % 5 === 0) {
+              return `#${index + 1}`;
+            }
+            return '';
           },
         },
       },
@@ -651,7 +682,7 @@ export default function Dashboard() {
                 <div>
                   <CardTitle>Call Statistics</CardTitle>
                   <CardDescription className="mt-1">
-                    Hourly call distribution (filtered by selected dates)
+                    Cumulative call comparison by call sequence (filtered by selected dates)
                   </CardDescription>
                 </div>
               </div>
