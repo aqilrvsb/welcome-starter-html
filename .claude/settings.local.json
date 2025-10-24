@@ -30,7 +30,8 @@
       "Bash(git pull:*)",
       "Bash(export SUPABASE_ACCESS_TOKEN=sbp_d76a78c850e4b69745c0bc95a87a2dd6b5bfe8f0)",
       "Bash(npx supabase link:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(docker --version:*)"
     ],
     "deny": [],
     "ask": []

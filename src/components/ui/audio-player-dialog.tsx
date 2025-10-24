@@ -91,38 +91,19 @@ export function AudioPlayerDialog({ recordingUrl, triggerButton, title = "Rakama
     audio.currentTime = Math.max(audio.currentTime - 10, 0);
   };
 
-  const downloadRecording = async () => {
+  const downloadRecording = () => {
     try {
-      // Fetch the audio file with credentials
-      const response = await fetch(recordingUrl, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Accept': 'audio/*',
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to download: ${response.status}`);
-      }
-
-      // Get the blob from response
-      const blob = await response.blob();
-
-      // Create blob URL and download
-      const blobUrl = URL.createObjectURL(blob);
+      // Simple download - HTTPS allows direct access
       const link = document.createElement('a');
-      link.href = blobUrl;
-      link.download = `recording-${Date.now()}.mp3`;
+      link.href = recordingUrl;
+      link.download = `recording-${Date.now()}.wav`;
+      link.target = '_blank';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-
-      // Clean up blob URL
-      URL.revokeObjectURL(blobUrl);
     } catch (error) {
       console.error('Download error:', error);
-      setError('Gagal memuat turun rakaman. Cuba buka di tab baru.');
+      setError('Gagal memuat turun rakaman.');
     }
   };
 
@@ -149,31 +130,18 @@ export function AudioPlayerDialog({ recordingUrl, triggerButton, title = "Rakama
     }
   };
 
-  // Fetch audio and create blob URL when dialog opens
+  // Load audio directly - HTTPS works without credentials
   const loadAudio = async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      console.log('Fetching audio from:', recordingUrl);
+      console.log('Loading audio from:', recordingUrl);
 
-      const response = await fetch(recordingUrl, {
-        method: 'GET',
-        credentials: 'include',
-        headers: {
-          'Accept': 'audio/*',
-        }
-      });
+      // Just set the URL directly - browser will handle HTTPS
+      setBlobUrl(recordingUrl);
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      setBlobUrl(url);
-
-      // Wait for audio element to load the blob
+      // Wait a bit for audio to load
       setTimeout(() => {
         const a = audioRef.current;
         if (a) {
