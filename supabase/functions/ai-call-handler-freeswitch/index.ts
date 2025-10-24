@@ -884,6 +884,32 @@ async function getAIResponse(session: any, userMessage: string) {
             console.error(`❌ Database error updating stage:`, dbError);
           }
         }
+      } else {
+        // 🔍 FALLBACK: If no stage marker in response, check conversation flow
+        // Auto-detect stage progression based on conversation turns
+        if (session.stages && session.stages.length > 0) {
+          const currentIndex = session.stages.indexOf(session.currentStage);
+          const turnCount = session.transcript.filter((t: any) => t.speaker === 'user').length;
+
+          // Progress to next stage every 2-3 customer responses
+          if (turnCount > 0 && turnCount % 2 === 0 && currentIndex < session.stages.length - 1) {
+            const nextStage = session.stages[currentIndex + 1];
+            if (nextStage && nextStage !== session.currentStage) {
+              session.currentStage = nextStage;
+              console.log(`🎯 Auto-progressed to stage: "${nextStage}" (turn ${turnCount})`);
+
+              try {
+                await supabaseAdmin
+                  .from('call_logs')
+                  .update({ stage_reached: nextStage })
+                  .eq('call_id', session.callId);
+                console.log(`✅ Auto-stage saved to database: "${nextStage}"`);
+              } catch (err) {
+                console.error(`❌ Error saving auto-stage:`, err);
+              }
+            }
+          }
+        }
       }
 
       // 📝 DETAILS EXTRACTION: Check if AI response contains %% wrapped content

@@ -257,6 +257,28 @@ export function CallLogsTable() {
     return `${minutes} min ${seconds} sec`;
   };
 
+  const formatDateTime = (dateString?: string) => {
+    if (!dateString) return { date: 'N/A', time: 'N/A' };
+
+    const date = new Date(dateString);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    const month = months[date.getMonth()];
+    const day = date.getDate();
+    const year = date.getFullYear();
+
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // 0 should be 12
+
+    const formattedDate = `${month} ${day}, ${year}`;
+    const formattedTime = `${hours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+
+    return { date: formattedDate, time: formattedTime };
+  };
+
   const filteredLogs = callLogs?.filter(log => {
     const searchLower = filters.search.toLowerCase();
     const customerName = (log.customer_name || (log as any).contacts?.name || '').toLowerCase();
@@ -571,6 +593,7 @@ export function CallLogsTable() {
                     <TableHead>Product</TableHead>
                     <TableHead>Prompt</TableHead>
                     <TableHead>Campaign</TableHead>
+                    <TableHead>Info</TableHead>
                     <TableHead>Stage</TableHead>
                     <TableHead>
                       <Button
@@ -638,6 +661,11 @@ export function CallLogsTable() {
                       {(log as any).campaigns?.campaign_name || '-'}
                     </TableCell>
                     <TableCell>
+                      <span className="text-xs text-muted-foreground truncate max-w-[150px] block">
+                        {log.details || '-'}
+                      </span>
+                    </TableCell>
+                    <TableCell>
                       <span className="text-sm font-medium text-primary">
                         {log.stage_reached || log.metadata?.stage_reached || '-'}
                       </span>
@@ -646,11 +674,9 @@ export function CallLogsTable() {
                       {getStatusBadge(log.status)}
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center text-sm text-muted-foreground">
-                        <Calendar className="h-4 w-4 mr-1" />
-                        {new Date(log.start_time).toLocaleDateString()}
-                        <Clock className="h-4 w-4 ml-2 mr-1" />
-                        {new Date(log.start_time).toLocaleTimeString()}
+                      <div className="flex flex-col text-xs">
+                        <span className="font-medium">{formatDateTime(log.start_time).date}</span>
+                        <span className="text-muted-foreground">{formatDateTime(log.start_time).time}</span>
                       </div>
                     </TableCell>
                     <TableCell>
@@ -715,6 +741,7 @@ export function CallLogsTable() {
                       <p className="text-xs text-muted-foreground">Product: {(log as any).contacts?.product || '-'}</p>
                       <p className="text-xs text-muted-foreground">Prompt: {(log as any).prompts?.prompt_name || '-'}</p>
                       <p className="text-xs text-muted-foreground">Campaign: {(log as any).campaigns?.campaign_name || '-'}</p>
+                      <p className="text-xs text-muted-foreground">Info: {log.details || '-'}</p>
                       <p className="text-xs text-primary font-medium">Stage: {log.stage_reached || log.metadata?.stage_reached || '-'}</p>
                     </div>
                   </div>
@@ -726,11 +753,9 @@ export function CallLogsTable() {
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Started:</span>
-                      <div className="flex items-center gap-1 text-xs">
-                        <Calendar className="h-3 w-3 text-muted-foreground" />
-                        <span>{new Date(log.start_time).toLocaleDateString()}</span>
-                        <Clock className="h-3 w-3 text-muted-foreground ml-1" />
-                        <span>{new Date(log.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                      <div className="flex flex-col items-end text-xs">
+                        <span className="font-medium">{formatDateTime(log.start_time).date}</span>
+                        <span className="text-muted-foreground">{formatDateTime(log.start_time).time}</span>
                       </div>
                     </div>
                   </div>
