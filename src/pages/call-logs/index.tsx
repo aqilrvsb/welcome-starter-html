@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
-import { ArrowLeft, Phone, Users, CheckCircle, AlertCircle, Clock, Target, Upload } from 'lucide-react';
+import { ArrowLeft, Phone, Users, CheckCircle, AlertCircle, Clock, Target, Download } from 'lucide-react';
 import { CallLogsTable } from '@/components/call-logs/CallLogsTable';
 import { motion } from 'framer-motion';
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
@@ -103,6 +103,68 @@ export default function CallLogsPage() {
     percent: answeredCallLogs.length > 0 ? ((count / answeredCallLogs.length) * 100).toFixed(1) : '0.0'
   })).sort((a, b) => b.count - a.count);
 
+  // Export to CSV function
+  const exportToCSV = () => {
+    if (!callLogsData || callLogsData.length === 0) {
+      alert('No data to export');
+      return;
+    }
+
+    // Define CSV headers
+    const headers = [
+      'Date/Time',
+      'Contact Name',
+      'Phone Number',
+      'Status',
+      'Duration (min)',
+      'Stage Reached',
+      'Recording URL',
+      'Campaign ID'
+    ];
+
+    // Convert data to CSV rows
+    const csvRows = callLogsData.map(log => {
+      const date = new Date(log.created_at).toLocaleString('en-MY', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+
+      return [
+        date,
+        log.contact_name || 'N/A',
+        log.phone_number || 'N/A',
+        log.status || 'N/A',
+        log.duration_minutes?.toFixed(2) || '0.00',
+        log.stage_reached || 'N/A',
+        log.recording_url || 'N/A',
+        log.campaign_id || 'N/A'
+      ];
+    });
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(','),
+      ...csvRows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', `call-logs-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8 max-w-7xl">
       <motion.div
@@ -141,9 +203,12 @@ export default function CallLogsPage() {
               Lihat semua rekod panggilan dari voice agent
             </p>
           </div>
-          <Button className="gap-2 bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary">
-            <Upload className="h-4 w-4" />
-            Import CSV
+          <Button
+            onClick={exportToCSV}
+            className="gap-2 bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
           </Button>
         </div>
       </motion.div>
