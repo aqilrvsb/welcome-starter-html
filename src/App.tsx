@@ -29,6 +29,11 @@ import NotFound from "./pages/NotFound";
 import ThankYou from "./pages/ThankYou";
 import TwilioTutorial from "./pages/TwilioTutorial";
 
+// Admin pages
+import AdminLogin from "./pages/admin/AdminLogin";
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminUsers from "./pages/admin/AdminUsers";
+
 // Create QueryClient outside component to avoid recreation
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,12 +47,34 @@ const queryClient = new QueryClient({
 // Layout wrapper for protected routes
 function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
-  const isPublicRoute = ['/', '/login', '/signup'].includes(location.pathname);
+  const isPublicRoute = ['/', '/login', '/signup', '/admin/login'].includes(location.pathname);
+  const isAdminRoute = location.pathname.startsWith('/admin');
 
   if (isPublicRoute) {
     return <>{children}</>;
   }
 
+  // Admin routes use AdminSidebar
+  if (isAdminRoute) {
+    const { AdminSidebar } = require('@/components/AdminSidebar');
+    return (
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full">
+          <AdminSidebar />
+          <main className="flex-1 flex flex-col relative">
+            <header className="sticky top-0 z-50 h-12 flex items-center border-b px-4 bg-background">
+              <SidebarTrigger />
+            </header>
+            <div className="flex-1">
+              {children}
+            </div>
+          </main>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  // Regular user routes use AppSidebar
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -168,14 +195,34 @@ function App() {
                         }
                       />
                       <Route path="/thank-you" element={<ThankYou />} />
-                      <Route 
-                        path="/twilio-tutorial" 
+                      <Route
+                        path="/twilio-tutorial"
                         element={
                           <CustomProtectedRoute>
                             <TwilioTutorial />
                           </CustomProtectedRoute>
-                        } 
+                        }
                       />
+
+                      {/* Admin Routes */}
+                      <Route path="/admin/login" element={<AdminLogin />} />
+                      <Route
+                        path="/admin/dashboard"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminDashboard />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/users"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminUsers />
+                          </CustomProtectedRoute>
+                        }
+                      />
+
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </div>

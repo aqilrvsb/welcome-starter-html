@@ -5,6 +5,8 @@ import { v4 as uuidv4 } from 'uuid';
 export interface User {
   id: string;
   username: string;
+  email: string;
+  is_admin: boolean;
   created_at: string;
 }
 
@@ -134,6 +136,8 @@ export const signUp = async (data: SignUpData): Promise<{ user: User | null; err
     const user: User = {
       id: newUser.id,
       username: newUser.username,
+      email: newUser.email,
+      is_admin: newUser.is_admin || false,
       created_at: newUser.created_at,
     };
 
@@ -180,6 +184,8 @@ export const signIn = async (data: SignInData): Promise<{ user: User | null; err
     const user: User = {
       id: userData.id,
       username: userData.username,
+      email: userData.email,
+      is_admin: userData.is_admin || false,
       created_at: userData.created_at,
     };
 
