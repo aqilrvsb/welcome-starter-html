@@ -342,7 +342,7 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
   // Prepare recording filename (will be started when customer answers)
   const recordingFilename = `${callId}_${Date.now()}.wav`;
   const recordingPath = `/usr/local/freeswitch/recordings/${recordingFilename}`;
-  const recordingUrl = `http://159.223.45.224/recordings/${recordingFilename}`;
+  const recordingUrl = `https://159.223.45.224/recordings/${recordingFilename}`;
 
   // Now start audio streaming on the parked call
   // uuid_audio_stream <uuid> start <wss-url> [mono|mixed|stereo] [8000|16000] [metadata]
