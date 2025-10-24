@@ -196,14 +196,15 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
         }
       } else if (accountType === 'pro') {
         const creditsBalance = userData?.credits_balance || 0;
+        const balanceMinutes = creditsBalance / 0.15; // Convert RM to minutes (RM0.15 per minute)
         const estimatedCost = estimatedMinutes * 0.15; // RM0.15 per minute
 
         if (creditsBalance <= 0) {
           throw new Error('Credits balance insufficient. Please top up credits to continue.');
         }
 
-        if (creditsBalance < estimatedCost) {
-          throw new Error(`Credits balance insufficient. You have RM${creditsBalance.toFixed(2)} but need approximately RM${estimatedCost.toFixed(2)}. Please top up credits.`);
+        if (balanceMinutes < estimatedMinutes) {
+          throw new Error(`Balance minutes insufficient. You have ${balanceMinutes.toFixed(1)} minutes (RM${creditsBalance.toFixed(2)}) but need approximately ${estimatedMinutes} minutes (RM${estimatedCost.toFixed(2)}). Please top up credits.`);
         }
       }
 
