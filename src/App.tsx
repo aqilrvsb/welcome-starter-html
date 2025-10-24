@@ -10,6 +10,7 @@ import { ThemeProvider } from "@/contexts/ThemeContext";
 import { CustomProtectedRoute } from "@/components/layout/CustomProtectedRoute";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { AdminSidebar } from "@/components/AdminSidebar";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -59,7 +60,6 @@ function ProtectedLayout({ children }: { children: React.ReactNode }) {
 
   // Admin routes use AdminSidebar
   if (isAdminRoute) {
-    const { AdminSidebar } = require('@/components/AdminSidebar');
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full">
