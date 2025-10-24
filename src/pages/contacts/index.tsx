@@ -7,8 +7,9 @@ import { ContactBatchCallModal } from "@/components/contacts/ContactBatchCallMod
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Phone } from "lucide-react";
+import { Phone, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { motion } from "framer-motion";
 
 const ContactsPage = () => {
   const { user } = useCustomAuth();
@@ -59,67 +60,132 @@ const ContactsPage = () => {
 
   return (
     <div className="container mx-auto p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Contacts</h1>
-          <p className="text-muted-foreground">
-            Manage your contact list and create batch call campaigns
-          </p>
+      {/* Header with gradient */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] as any }}
+        className="p-8 rounded-2xl gradient-card card-soft mb-6"
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 rounded-lg bg-primary/10">
+                <Users className="h-6 w-6 text-primary" />
+              </div>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-primary-light to-primary-dark bg-clip-text text-transparent">
+                Contacts
+              </h1>
+            </div>
+            <p className="text-muted-foreground text-lg">
+              Manage your contact list and create batch call campaigns
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {selectedContacts.length > 0 && (
+              <motion.div
+                initial={{ scale: 0, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0, opacity: 0 }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Button
+                  onClick={handleBatchCall}
+                  className="gap-2 bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary transition-all duration-300 shadow-lg hover:shadow-xl"
+                >
+                  <Phone className="h-4 w-4" />
+                  Batch Call ({selectedContacts.length})
+                </Button>
+              </motion.div>
+            )}
+          </div>
         </div>
-        <div className="flex gap-2">
-          {selectedContacts.length > 0 && (
-            <Button onClick={handleBatchCall} className="gap-2">
-              <Phone className="h-4 w-4" />
-              Batch Call ({selectedContacts.length})
-            </Button>
-          )}
-        </div>
-      </div>
+      </motion.div>
 
-      <Tabs defaultValue="list" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="list">Contact List</TabsTrigger>
-          <TabsTrigger value="add">Add Contact</TabsTrigger>
-          <TabsTrigger value="import">Import Excel</TabsTrigger>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+      >
+        <Tabs defaultValue="list" className="space-y-6">
+        <TabsList className="bg-muted/50 border border-primary/20">
+          <TabsTrigger
+            value="list"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+          >
+            Contact List
+          </TabsTrigger>
+          <TabsTrigger
+            value="add"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+          >
+            Add Contact
+          </TabsTrigger>
+          <TabsTrigger
+            value="import"
+            className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+          >
+            Import Excel
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="list" className="space-y-4">
-          <ContactList 
-            userId={user.id}
-            selectedContacts={selectedContacts}
-            onSelectionChange={setSelectedContacts}
-            refreshTrigger={refreshTrigger}
-          />
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.4 }}
+          >
+            <ContactList
+              userId={user.id}
+              selectedContacts={selectedContacts}
+              onSelectionChange={setSelectedContacts}
+              refreshTrigger={refreshTrigger}
+            />
+          </motion.div>
         </TabsContent>
 
         <TabsContent value="add">
-          <Card>
-            <CardHeader>
-              <CardTitle>Add New Contact</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ContactForm 
-                userId={user.id}
-                onSuccess={handleContactAdded}
-              />
-            </CardContent>
-          </Card>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <Card className="card-medium border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-2xl text-primary">Add New Contact</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ContactForm
+                  userId={user.id}
+                  onSuccess={handleContactAdded}
+                />
+              </CardContent>
+            </Card>
+          </motion.div>
         </TabsContent>
 
         <TabsContent value="import">
-          <Card>
-            <CardHeader>
-              <CardTitle>Import Contacts from Excel</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ExcelImport 
-                userId={user.id}
-                onSuccess={handleContactsImported}
-              />
-            </CardContent>
-          </Card>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <Card className="card-medium border-primary/20">
+              <CardHeader>
+                <CardTitle className="text-2xl text-primary">Import Contacts from Excel</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ExcelImport
+                  userId={user.id}
+                  onSuccess={handleContactsImported}
+                />
+              </CardContent>
+            </Card>
+          </motion.div>
         </TabsContent>
       </Tabs>
+      </motion.div>
 
       <ContactBatchCallModal
         open={isBatchCallModalOpen}
