@@ -10,7 +10,9 @@ import {
   PhoneCall,
   Calendar,
   Target,
-  Wallet
+  Wallet,
+  Gift,
+  DollarSign
 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -448,13 +450,14 @@ export default function Dashboard() {
           </Card>
         </motion.div>
 
-        {/* First Row: Overview Cards */}
+        {/* First Row: Balance & Usage Cards (same as Credits Top-Up) */}
         <motion.div
           variants={containerVariants}
           initial="hidden"
           animate="visible"
           className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"
         >
+          {/* Balance Minutes */}
           <motion.div variants={itemVariants}>
             <motion.div
               whileHover={{ scale: 1.02, y: -4 }}
@@ -462,37 +465,20 @@ export default function Dashboard() {
             >
               <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Campaigns</CardTitle>
+                  <CardTitle className="text-sm font-medium">Balance Minutes</CardTitle>
                   <div className="p-2 rounded-lg bg-primary/10">
-                    <Target className="h-4 w-4 text-primary" />
+                    <Wallet className="h-4 w-4 text-primary" />
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-primary">{campaignsData?.length || 0}</div>
+                  <div className="text-3xl font-bold text-primary">{balanceMinutes.toFixed(1)} min</div>
+                  <p className="text-xs text-muted-foreground mt-1">Available for calls</p>
                 </CardContent>
               </Card>
             </motion.div>
           </motion.div>
 
-          <motion.div variants={itemVariants}>
-            <motion.div
-              whileHover={{ scale: 1.02, y: -4 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Users className="h-4 w-4 text-primary" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold text-primary">{contactsData?.length || 0}</div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </motion.div>
-
+          {/* Total Minutes Used - Pro only */}
           <motion.div variants={itemVariants}>
             <motion.div
               whileHover={{ scale: 1.02, y: -4 }}
@@ -501,22 +487,44 @@ export default function Dashboard() {
               <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">Total Minutes Used</CardTitle>
-                  <div className="p-2 rounded-lg bg-primary/10">
-                    <Clock className="h-4 w-4 text-primary" />
+                  <div className="p-2 rounded-lg bg-blue-500/10">
+                    <TrendingUp className="h-4 w-4 text-blue-600" />
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-primary">
-                    {accountType === 'trial' ? trialUsed.toFixed(1) : proMinutesUsed.toFixed(1)} min
+                  <div className="text-3xl font-bold text-blue-600">
+                    {proMinutesUsed.toFixed(1)} min
                   </div>
+                  <p className="text-xs text-muted-foreground mt-1">Pro account usage only</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+
+          {/* Trial Minutes */}
+          <motion.div variants={itemVariants}>
+            <motion.div
+              whileHover={{ scale: 1.02, y: -4 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="card-soft border-success/20 transition-smooth hover:border-success/40">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Trial Minutes</CardTitle>
+                  <div className="p-2 rounded-lg bg-success/10">
+                    <Gift className="h-4 w-4 text-success" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-success">{trialRemaining.toFixed(1)} min</div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    {accountType === 'trial' ? 'Trial usage' : 'Pro usage'}
+                    {trialUsed.toFixed(1)} / {trialTotal.toFixed(1)} min used
                   </p>
                 </CardContent>
               </Card>
             </motion.div>
           </motion.div>
 
+          {/* Rate */}
           <motion.div variants={itemVariants}>
             <motion.div
               whileHover={{ scale: 1.02, y: -4 }}
@@ -524,16 +532,14 @@ export default function Dashboard() {
             >
               <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Remaining Minutes</CardTitle>
-                  <div className="p-2 rounded-lg bg-success/10">
-                    <Wallet className="h-4 w-4 text-success" />
+                  <CardTitle className="text-sm font-medium">Rate</CardTitle>
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <DollarSign className="h-4 w-4 text-primary" />
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-success">{remainingMinutes.toFixed(1)} min</div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {accountType === 'trial' ? 'Trial balance' : `RM ${creditsBalance.toFixed(2)}`}
-                  </p>
+                  <div className="text-3xl font-bold text-primary">RM 0.15</div>
+                  <p className="text-xs text-muted-foreground mt-1">per minute</p>
                 </CardContent>
               </Card>
             </motion.div>
