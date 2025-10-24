@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { ArrowLeft, Phone, Users, CheckCircle, AlertCircle, Clock, TrendingUp, Target, Upload } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowLeft, Phone, Users, CheckCircle, AlertCircle, Clock, Target, Upload } from 'lucide-react';
 import { CallLogsTable } from '@/components/call-logs/CallLogsTable';
 import { motion } from 'framer-motion';
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
@@ -8,8 +8,6 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 
 // Animation variants
 const containerVariants = {
@@ -37,29 +35,17 @@ const itemVariants = {
 
 export default function CallLogsPage() {
   const { user } = useCustomAuth();
-  const today = new Date().toISOString().split('T')[0];
-  const [dateFrom, setDateFrom] = useState(today);
-  const [dateTo, setDateTo] = useState(today);
 
-  // Fetch call logs data with date filter
+  // Fetch all call logs data (filtering will be done by the table component)
   const { data: callLogsData, isLoading: callLogsLoading } = useQuery({
-    queryKey: ['call-logs-stats', user?.id, dateFrom, dateTo],
+    queryKey: ['call-logs-stats', user?.id],
     queryFn: async () => {
       if (!user) return [];
-      let query = supabase.from('call_logs').select('*').eq('user_id', user.id);
-
-      if (dateFrom) {
-        const fromDate = new Date(dateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        query = query.gte('created_at', fromDate.toISOString());
-      }
-      if (dateTo) {
-        const toDate = new Date(dateTo);
-        toDate.setHours(23, 59, 59, 999);
-        query = query.lte('created_at', toDate.toISOString());
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
+      const { data, error } = await supabase
+        .from('call_logs')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
     },
@@ -160,43 +146,6 @@ export default function CallLogsPage() {
             Import CSV
           </Button>
         </div>
-      </motion.div>
-
-      {/* Date Filter */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-      >
-        <Card className="mb-6 card-soft border-primary/20">
-          <CardHeader>
-            <CardTitle className="text-lg">Date Filter</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="dateFrom" className="text-sm font-medium">From Date</Label>
-                <Input
-                  id="dateFrom"
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="mt-1.5 transition-smooth focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-              <div>
-                <Label htmlFor="dateTo" className="text-sm font-medium">To Date</Label>
-                <Input
-                  id="dateTo"
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="mt-1.5 transition-smooth focus:ring-2 focus:ring-primary/20"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </motion.div>
 
       {/* Statistics Cards Row 1 */}
