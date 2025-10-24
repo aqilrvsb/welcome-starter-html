@@ -885,43 +885,7 @@ async function getAIResponse(session: any, userMessage: string) {
           }
         }
       } else {
-        // 🔍 SMART STAGE DETECTION: Analyze AI response content to detect stage
-        let detectedStage = null;
-        const aiLower = aiResponse.toLowerCase();
-
-        // Stage detection patterns based on conversation content
-        if (aiLower.includes('assalamualaikum') || aiLower.match(/ni .+ kan\?/)) {
-          detectedStage = 'Welcome Message';
-        } else if (aiLower.includes('maaf ganggu') || aiLower.includes('dari page') || aiLower.includes('contact kami')) {
-          detectedStage = 'Introduction';
-        } else if (aiLower.includes('boleh cik cerita') || aiLower.includes('masa\'alah') || aiLower.match(/sejak bila|macam mana|pilih-pilih/)) {
-          detectedStage = 'Fact Finding';
-        } else if (aiLower.includes('v\'tec') || aiLower.includes('vtec') || aiLower.includes('mengandungi') || aiLower.includes('bantu')) {
-          detectedStage = 'Present Product';
-        } else if (aiLower.match(/ringgit|harga|promosi|lapan pulooh|siratus/)) {
-          detectedStage = 'Harga';
-        } else if (aiLower.includes('nama penuh') || aiLower.includes('alamat penuh')) {
-          detectedStage = 'Confirmation';
-        } else if (aiLower.includes('admin akan whatsapp') || aiLower.includes('pengesahan')) {
-          detectedStage = 'Dapat Detail';
-        }
-
-        // Update stage if detected and different from current
-        if (detectedStage && detectedStage !== session.currentStage) {
-          const oldStage = session.currentStage;
-          session.currentStage = detectedStage;
-          console.log(`🎯 Smart-detected stage transition: "${oldStage}" → "${detectedStage}"`);
-
-          try {
-            await supabaseAdmin
-              .from('call_logs')
-              .update({ stage_reached: detectedStage })
-              .eq('call_id', session.callId);
-            console.log(`✅ Smart-detected stage saved to database: "${detectedStage}"`);
-          } catch (err) {
-            console.error(`❌ Error saving smart-detected stage:`, err);
-          }
-        }
+        console.log(`⚠️ No !!Stage marker!! found in AI response - AI should include stage markers!`);
       }
 
       // 📝 DETAILS EXTRACTION: Check if AI response contains %% wrapped content
