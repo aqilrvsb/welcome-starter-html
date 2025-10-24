@@ -36,6 +36,7 @@ export default function Settings() {
   
   const [profile, setProfile] = useState({
     email: '',
+    username: '',
     phone_number: '',
   });
 
@@ -47,14 +48,15 @@ export default function Settings() {
       try {
         const { data, error } = await supabase
           .from('users')
-          .select('email, phone_number')
+          .select('email, username, phone_number')
           .eq('id', user.id)
           .maybeSingle();
-        
+
         if (data && !error) {
           setProfile(prev => ({
             ...prev,
             email: data.email || '',
+            username: data.username || '',
             phone_number: data.phone_number || '',
           }));
         }
@@ -81,25 +83,25 @@ export default function Settings() {
 
   const handleSaveProfile = async () => {
     if (!user?.id) return;
-    
+
     setLoading(true);
     try {
-      // Validate email format
-      if (profile.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profile.email)) {
+      // Validate username
+      if (profile.username && profile.username.length < 3) {
         toast({
-          title: 'Invalid Email',
-          description: 'Please enter a valid email address.',
+          title: 'Invalid Username',
+          description: 'Username must be at least 3 characters.',
           variant: 'destructive',
         });
         setLoading(false);
         return;
       }
 
-      // Update user email and phone_number in users table
+      // Update user username and phone_number in users table (email cannot be changed)
       const { error } = await supabase
         .from('users')
-        .update({ 
-          email: profile.email || null,
+        .update({
+          username: profile.username || null,
           phone_number: profile.phone_number || null
         })
         .eq('id', user.id);
@@ -216,28 +218,28 @@ export default function Settings() {
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="username">Username</Label>
-                  <Input
-                    id="username"
-                    value={user?.username || ''}
-                    disabled
-                    className="bg-muted"
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Username cannot be changed. Contact support if needed.
-                  </p>
-                </div>
-                <div className="space-y-2">
                   <Label htmlFor="email">Email Address</Label>
                   <Input
                     id="email"
                     type="email"
                     placeholder="your.email@example.com"
                     value={profile.email}
-                    onChange={(e) => setProfile(prev => ({ ...prev, email: e.target.value }))}
+                    disabled
+                    className="bg-muted"
                   />
                   <p className="text-sm text-muted-foreground">
-                    Used for payment notifications and receipts.
+                    Email cannot be changed. Used for login and notifications.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    value={profile.username}
+                    onChange={(e) => setProfile(prev => ({ ...prev, username: e.target.value }))}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Your display username (min. 3 characters).
                   </p>
                 </div>
               </div>

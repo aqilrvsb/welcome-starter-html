@@ -9,12 +9,13 @@ export interface User {
 }
 
 export interface SignUpData {
+  email: string;
   username: string;
   password: string;
 }
 
 export interface SignInData {
-  username: string;
+  email: string;
   password: string;
 }
 
@@ -100,24 +101,25 @@ const checkAndUpdateExpiredSubscription = async (userId: string): Promise<void> 
 // Sign up function using Supabase
 export const signUp = async (data: SignUpData): Promise<{ user: User | null; error: string | null }> => {
   try {
-    // Check if username already exists
-    const { data: existingUser } = await supabase
+    // Check if email already exists (email must be unique)
+    const { data: existingEmail } = await supabase
       .from('users')
-      .select('username')
-      .eq('username', data.username)
+      .select('email')
+      .eq('email', data.email)
       .maybeSingle();
-    
-    if (existingUser) {
-      return { user: null, error: 'Username already exists' };
+
+    if (existingEmail) {
+      return { user: null, error: 'Email already exists' };
     }
 
     // Hash password
     const passwordHash = await hashPassword(data.password);
-    
+
     // Create new user in database
     const { data: newUser, error } = await supabase
       .from('users')
       .insert({
+        email: data.email,
         username: data.username,
         password_hash: passwordHash,
       })
@@ -154,21 +156,21 @@ export const signUp = async (data: SignUpData): Promise<{ user: User | null; err
 // Sign in function using Supabase
 export const signIn = async (data: SignInData): Promise<{ user: User | null; error: string | null }> => {
   try {
-    // Get user from database
+    // Get user from database by email
     const { data: userData, error } = await supabase
       .from('users')
       .select('*')
-      .eq('username', data.username)
+      .eq('email', data.email)
       .single();
 
     if (error || !userData) {
-      return { user: null, error: 'Invalid username or password' };
+      return { user: null, error: 'Invalid email or password' };
     }
 
     // Verify password
     const isValidPassword = await verifyPassword(data.password, userData.password_hash);
     if (!isValidPassword) {
-      return { user: null, error: 'Invalid username or password' };
+      return { user: null, error: 'Invalid email or password' };
     }
 
     // Check and update expired subscriptions before allowing login

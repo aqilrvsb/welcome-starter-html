@@ -3,7 +3,7 @@ import { useNavigate, Navigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Bot, User, Lock, Eye, EyeOff } from 'lucide-react';
+import { Bot, User, Lock, Eye, EyeOff, Mail } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,11 @@ import { signUp } from '@/lib/customAuth';
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
 
 const signupSchema = z.object({
+  email: z.string()
+    .email('Please enter a valid email address')
+    .refine((email) => email.endsWith('@gmail.com'), {
+      message: 'Only Gmail addresses are allowed to prevent spam',
+    }),
   username: z.string().min(3, 'Username must be at least 3 characters'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string().min(6, 'Please confirm your password'),
@@ -47,10 +52,11 @@ export default function Signup() {
     setLoading(true);
     try {
       const { user, error } = await signUp({
+        email: data.email,
         username: data.username,
         password: data.password,
       });
-      
+
       if (error) {
         toast.error(error);
         return;
@@ -89,6 +95,26 @@ export default function Signup() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              {/* Email Field */}
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="your.email@example.com"
+                    className="pl-10"
+                    {...register('email')}
+                  />
+                </div>
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email.message}</p>
+                )}
+              </div>
+
               {/* Username Field */}
               <div className="space-y-2">
                 <Label htmlFor="username">Username</Label>
