@@ -30,6 +30,7 @@ export default function CreditsTopup() {
   const [creditsBalance, setCreditsBalance] = useState(0);
   const [totalMinutesUsed, setTotalMinutesUsed] = useState(0);
   const [trialMinutesUsed, setTrialMinutesUsed] = useState(0);
+  const [trialMinutesTotal, setTrialMinutesTotal] = useState(10.0);
   const [topupAmount, setTopupAmount] = useState<number>(20); // Default RM20
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
@@ -59,6 +60,7 @@ export default function CreditsTopup() {
       setCreditsBalance((userData as any)?.credits_balance || 0);
       setTotalMinutesUsed((userData as any)?.total_minutes_used || 0);
       setTrialMinutesUsed((userData as any)?.trial_minutes_used || 0);
+      setTrialMinutesTotal((userData as any)?.trial_minutes_total || 10.0);
 
       // Get recent transactions
       const { data: transactionsData, error: transactionsError } = await supabase
@@ -161,7 +163,7 @@ export default function CreditsTopup() {
   }
 
   const balanceMinutes = creditsBalance / 0.15; // RM0.15 per minute
-  const trialMinutesRemaining = Math.max(0, 10 - trialMinutesUsed);
+  const trialMinutesRemaining = Math.max(0, trialMinutesTotal - trialMinutesUsed);
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -203,7 +205,7 @@ export default function CreditsTopup() {
           <CardContent>
             <div className="text-2xl font-bold">{trialMinutesRemaining.toFixed(1)} min</div>
             <p className="text-xs text-muted-foreground">
-              {trialMinutesUsed.toFixed(1)} / 10 min used
+              {trialMinutesUsed.toFixed(1)} / {trialMinutesTotal.toFixed(1)} min used
             </p>
           </CardContent>
         </Card>
