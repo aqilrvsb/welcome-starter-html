@@ -37,6 +37,7 @@ import {
   Legend,
   Filler
 } from 'chart.js';
+import { motion } from 'framer-motion';
 
 // Register Chart.js components
 ChartJS.register(
@@ -49,6 +50,42 @@ ChartJS.register(
   Legend,
   Filler
 );
+
+// Animation variants for elegant motion
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.5,
+      ease: [0.4, 0, 0.2, 1] as any,
+    },
+  },
+};
+
+const cardHoverVariants = {
+  rest: { scale: 1, y: 0 },
+  hover: {
+    scale: 1.02,
+    y: -4,
+    transition: {
+      duration: 0.3,
+      ease: [0.4, 0, 0.2, 1],
+    },
+  },
+};
 
 export default function Dashboard() {
   const { user } = useCustomAuth();
@@ -270,218 +307,343 @@ export default function Dashboard() {
       </Dialog>
 
       <div className="container mx-auto px-4 py-8 max-w-7xl">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">
+        {/* Header with gradient background */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] }}
+          className="mb-8 p-8 rounded-2xl gradient-card card-soft"
+        >
+          <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-primary via-primary-light to-primary-dark bg-clip-text text-transparent mb-3">
             Welcome back, {user?.username}!
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground text-lg">
             Here's an overview of your voice AI campaigns and performance.
           </p>
-        </div>
+        </motion.div>
 
         {/* Date Filter */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              <CardTitle>Date Filters</CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="dateFrom">From Date</Label>
-                <Input
-                  id="dateFrom"
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                />
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+        >
+          <Card className="mb-6 card-soft transition-smooth hover:shadow-medium border-primary/20">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Calendar className="h-5 w-5 text-primary" />
+                </div>
+                <CardTitle>Date Filters</CardTitle>
               </div>
-              <div>
-                <Label htmlFor="dateTo">To Date</Label>
-                <Input
-                  id="dateTo"
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                />
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="dateFrom" className="text-sm font-medium">From Date</Label>
+                  <Input
+                    id="dateFrom"
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="mt-1.5 transition-smooth focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="dateTo" className="text-sm font-medium">To Date</Label>
+                  <Input
+                    id="dateTo"
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="mt-1.5 transition-smooth focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* First Row: Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Campaigns</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{campaignsData?.length || 0}</div>
-            </CardContent>
-          </Card>
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"
+        >
+          <motion.div variants={itemVariants}>
+            <motion.div
+              whileHover={{ scale: 1.02, y: -4 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Campaigns</CardTitle>
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Target className="h-4 w-4 text-primary" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-primary">{campaignsData?.length || 0}</div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{contactsData?.length || 0}</div>
-            </CardContent>
-          </Card>
+          <motion.div variants={itemVariants}>
+            <motion.div
+              whileHover={{ scale: 1.02, y: -4 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Contacts</CardTitle>
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Users className="h-4 w-4 text-primary" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-primary">{contactsData?.length || 0}</div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Minutes Used</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">
-                {accountType === 'trial' ? trialUsed.toFixed(1) : proMinutesUsed.toFixed(1)} min
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {accountType === 'trial' ? 'Trial usage' : 'Pro usage'}
-              </p>
-            </CardContent>
-          </Card>
+          <motion.div variants={itemVariants}>
+            <motion.div
+              whileHover={{ scale: 1.02, y: -4 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Minutes Used</CardTitle>
+                  <div className="p-2 rounded-lg bg-primary/10">
+                    <Clock className="h-4 w-4 text-primary" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-primary">
+                    {accountType === 'trial' ? trialUsed.toFixed(1) : proMinutesUsed.toFixed(1)} min
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {accountType === 'trial' ? 'Trial usage' : 'Pro usage'}
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Remaining Minutes</CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{remainingMinutes.toFixed(1)} min</div>
-              <p className="text-xs text-muted-foreground">
-                {accountType === 'trial' ? 'Trial balance' : `RM ${creditsBalance.toFixed(2)}`}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+          <motion.div variants={itemVariants}>
+            <motion.div
+              whileHover={{ scale: 1.02, y: -4 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Remaining Minutes</CardTitle>
+                  <div className="p-2 rounded-lg bg-success/10">
+                    <Wallet className="h-4 w-4 text-success" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-success">{remainingMinutes.toFixed(1)} min</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {accountType === 'trial' ? 'Trial balance' : `RM ${creditsBalance.toFixed(2)}`}
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+        </motion.div>
 
         {/* Second Row: Call Breakdown Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Calls</CardTitle>
-              <PhoneCall className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalCalls}</div>
-              <p className="text-xs text-muted-foreground">Filtered by date</p>
-            </CardContent>
-          </Card>
+        <motion.div
+          variants={containerVariants}
+          initial="hidden"
+          animate="visible"
+          className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"
+        >
+          <motion.div variants={itemVariants}>
+            <motion.div
+              whileHover={{ scale: 1.02, y: -4 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Calls</CardTitle>
+                  <div className="p-2 rounded-lg bg-blue-500/10">
+                    <PhoneCall className="h-4 w-4 text-blue-600" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-blue-600">{totalCalls}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Filtered by date</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Answered</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{answeredCalls}</div>
-              <p className="text-xs text-muted-foreground">{answeredPercent}% of total</p>
-            </CardContent>
-          </Card>
+          <motion.div variants={itemVariants}>
+            <motion.div
+              whileHover={{ scale: 1.02, y: -4 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="card-soft border-success/20 transition-smooth hover:border-success/40">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Answered</CardTitle>
+                  <div className="p-2 rounded-lg bg-success/10">
+                    <CheckCircle className="h-4 w-4 text-success" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-success">{answeredCalls}</div>
+                  <p className="text-xs text-muted-foreground mt-1">{answeredPercent}% of total</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Unanswered</CardTitle>
-              <AlertCircle className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{unansweredCalls}</div>
-              <p className="text-xs text-muted-foreground">{unansweredPercent}% of total</p>
-            </CardContent>
-          </Card>
+          <motion.div variants={itemVariants}>
+            <motion.div
+              whileHover={{ scale: 1.02, y: -4 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="card-soft border-orange-200 transition-smooth hover:border-orange-400">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Unanswered</CardTitle>
+                  <div className="p-2 rounded-lg bg-orange-500/10">
+                    <AlertCircle className="h-4 w-4 text-orange-600" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-orange-600">{unansweredCalls}</div>
+                  <p className="text-xs text-muted-foreground mt-1">{unansweredPercent}% of total</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Voicemail/Failed</CardTitle>
-              <AlertCircle className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{voicemailCalls + failedCalls}</div>
-              <p className="text-xs text-muted-foreground">
-                VM: {voicemailPercent}% | Failed: {failedPercent}%
-              </p>
-            </CardContent>
-          </Card>
-        </div>
+          <motion.div variants={itemVariants}>
+            <motion.div
+              whileHover={{ scale: 1.02, y: -4 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="card-soft border-destructive/20 transition-smooth hover:border-destructive/40">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Voicemail/Failed</CardTitle>
+                  <div className="p-2 rounded-lg bg-destructive/10">
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-destructive">{voicemailCalls + failedCalls}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    VM: {voicemailPercent}% | Failed: {failedPercent}%
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </motion.div>
+        </motion.div>
 
         {/* Call Statistics Line Chart */}
-        <Card className="mb-6">
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              <CardTitle>Call Statistics</CardTitle>
-            </div>
-            <CardDescription>
-              Hourly call distribution (filtered by selected dates)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div style={{ height: '300px' }}>
-              {callLogsLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-muted-foreground">Loading chart...</p>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
+        >
+          <Card className="mb-6 card-medium border-primary/20 transition-smooth hover:border-primary/30">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <TrendingUp className="h-5 w-5 text-primary" />
                 </div>
-              ) : totalCalls === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <p className="text-muted-foreground">No call data available for selected dates</p>
+                <div>
+                  <CardTitle>Call Statistics</CardTitle>
+                  <CardDescription className="mt-1">
+                    Hourly call distribution (filtered by selected dates)
+                  </CardDescription>
                 </div>
-              ) : (
-                <Line data={lineChartData} options={lineChartOptions} />
-              )}
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div style={{ height: '300px' }}>
+                {callLogsLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-muted-foreground">Loading chart...</p>
+                  </div>
+                ) : totalCalls === 0 ? (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-muted-foreground">No call data available for selected dates</p>
+                  </div>
+                ) : (
+                  <Line data={lineChartData} options={lineChartOptions} />
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
 
         {/* Stage Analytics */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Target className="h-5 w-5" />
-              <CardTitle>Stage Analytics</CardTitle>
-            </div>
-            <CardDescription>
-              Distribution of answered calls by conversation stage reached (filtered by selected dates)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {callLogsLoading ? (
-              <p className="text-muted-foreground">Loading stage data...</p>
-            ) : stageData.length === 0 ? (
-              <p className="text-muted-foreground">
-                No answered calls with stage data for selected dates
-              </p>
-            ) : (
-              <div className="space-y-4">
-                {stageData.map(({ stage, count, percent }) => (
-                  <div key={stage} className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-sm font-medium">{stage}</span>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.6 }}
+        >
+          <Card className="card-medium border-primary/20 transition-smooth hover:border-primary/30">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Target className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <CardTitle>Stage Analytics</CardTitle>
+                  <CardDescription className="mt-1">
+                    Distribution of answered calls by conversation stage reached (filtered by selected dates)
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {callLogsLoading ? (
+                <p className="text-muted-foreground">Loading stage data...</p>
+              ) : stageData.length === 0 ? (
+                <p className="text-muted-foreground">
+                  No answered calls with stage data for selected dates
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {stageData.map(({ stage, count, percent }, index) => (
+                    <motion.div
+                      key={stage}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.4, delay: index * 0.1 }}
+                      className="group"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium group-hover:text-primary transition-smooth">
+                          {stage}
+                        </span>
                         <span className="text-sm text-muted-foreground">
                           {count} calls ({percent}%)
                         </span>
                       </div>
-                      <div className="w-full bg-muted rounded-full h-2">
-                        <div
-                          className="bg-primary h-2 rounded-full transition-all"
-                          style={{ width: `${percent}%` }}
+                      <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${percent}%` }}
+                          transition={{ duration: 0.8, delay: index * 0.1 + 0.2, ease: "easeOut" }}
+                          className="bg-gradient-to-r from-primary via-primary-light to-primary h-2.5 rounded-full"
                         />
                       </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
     </>
   );
