@@ -33,10 +33,13 @@ import TwilioTutorial from "./pages/TwilioTutorial";
 // Admin pages
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
+import AdminRevenue from "./pages/admin/AdminRevenue";
+import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminUsers from "./pages/admin/AdminUsers";
 import AdminCallLogs from "./pages/admin/AdminCallLogs";
 import AdminContacts from "./pages/admin/AdminContacts";
 import AdminCampaigns from "./pages/admin/AdminCampaigns";
+import AdminReports from "./pages/admin/AdminReports";
 
 // Create QueryClient outside component to avoid recreation
 const queryClient = new QueryClient({
@@ -218,6 +221,22 @@ function App() {
                         }
                       />
                       <Route
+                        path="/admin/revenue"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminRevenue />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/analytics"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminAnalytics />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
                         path="/admin/users"
                         element={
                           <CustomProtectedRoute>
@@ -246,6 +265,14 @@ function App() {
                         element={
                           <CustomProtectedRoute>
                             <AdminCampaigns />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/reports"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminReports />
                           </CustomProtectedRoute>
                         }
                       />
