@@ -28,9 +28,11 @@ export default function CreditsTopup() {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [creditsBalance, setCreditsBalance] = useState(0);
-  const [totalMinutesUsed, setTotalMinutesUsed] = useState(0);
+  const [totalMinutesUsed, setTotalMinutesUsed] = useState(0); // This will show Pro-only usage
+  const [proMinutesUsed, setProMinutesUsed] = useState(0); // Track Pro account minutes separately
   const [trialMinutesUsed, setTrialMinutesUsed] = useState(0);
   const [trialMinutesTotal, setTrialMinutesTotal] = useState(10.0);
+  const [accountType, setAccountType] = useState<'trial' | 'pro'>('trial');
   const [topupAmount, setTopupAmount] = useState<number>(20); // Default RM20
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
@@ -58,9 +60,17 @@ export default function CreditsTopup() {
       if (error) throw error;
 
       setCreditsBalance((userData as any)?.credits_balance || 0);
-      setTotalMinutesUsed((userData as any)?.total_minutes_used || 0);
       setTrialMinutesUsed((userData as any)?.trial_minutes_used || 0);
       setTrialMinutesTotal((userData as any)?.trial_minutes_total || 10.0);
+      setAccountType((userData as any)?.account_type || 'trial');
+
+      // Calculate Pro-only minutes: total_minutes_used - trial_minutes_used
+      const totalMins = (userData as any)?.total_minutes_used || 0;
+      const trialMins = (userData as any)?.trial_minutes_used || 0;
+      const proOnlyMins = Math.max(0, totalMins - trialMins);
+
+      setProMinutesUsed(proOnlyMins);
+      setTotalMinutesUsed(proOnlyMins); // Show Pro-only minutes in "Total Minutes Used" card
 
       // Get recent transactions
       const { data: transactionsData, error: transactionsError } = await supabase
@@ -185,7 +195,7 @@ export default function CreditsTopup() {
           </CardContent>
         </Card>
 
-        {/* Total Minutes Used */}
+        {/* Total Minutes Used - Always show, but displays Pro account usage only */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Minutes Used</CardTitle>
@@ -193,6 +203,7 @@ export default function CreditsTopup() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{totalMinutesUsed.toFixed(1)} min</div>
+            <p className="text-xs text-muted-foreground">Pro account usage only</p>
           </CardContent>
         </Card>
 
