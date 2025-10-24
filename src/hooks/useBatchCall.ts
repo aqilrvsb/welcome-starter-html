@@ -168,8 +168,44 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
         throw new Error("User not authenticated");
       }
 
-      // NOTE: Credits check is done in batch-call-v2 edge function
-      // No need to check trial subscription - we're using credits-based billing
+      // Check balance before creating batch call
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('account_type, trial_minutes_total, trial_minutes_used, credits_balance')
+        .eq('id', user.id)
+        .single();
+
+      if (userError) {
+        throw new Error('Failed to fetch user balance');
+      }
+
+      const accountType = userData?.account_type || 'trial';
+      const estimatedMinutes = validNumbers.length * 2; // Rough estimate: 2 minutes per call
+
+      if (accountType === 'trial') {
+        const trialTotal = userData?.trial_minutes_total || 10.0;
+        const trialUsed = userData?.trial_minutes_used || 0;
+        const trialRemaining = trialTotal - trialUsed;
+
+        if (trialRemaining <= 0) {
+          throw new Error('Trial balance insufficient. Please switch to Pro Account or top up credits.');
+        }
+
+        if (trialRemaining < estimatedMinutes) {
+          throw new Error(`Trial balance insufficient. You have ${trialRemaining.toFixed(1)} minutes remaining but need approximately ${estimatedMinutes} minutes. Please switch to Pro Account or top up credits.`);
+        }
+      } else if (accountType === 'pro') {
+        const creditsBalance = userData?.credits_balance || 0;
+        const estimatedCost = estimatedMinutes * 0.15; // RM0.15 per minute
+
+        if (creditsBalance <= 0) {
+          throw new Error('Credits balance insufficient. Please top up credits to continue.');
+        }
+
+        if (creditsBalance < estimatedCost) {
+          throw new Error(`Credits balance insufficient. You have RM${creditsBalance.toFixed(2)} but need approximately RM${estimatedCost.toFixed(2)}. Please top up credits.`);
+        }
+      }
 
       if (validNumbers.length === 0) {
         throw new Error("Tiada nombor telefon yang sah");
@@ -237,27 +273,36 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
     onError: (error: any) => {
       console.error("Batch call error:", error);
 
-      // Check if it's an insufficient credits error
-      if (error.message && error.message.includes('Insufficient credits')) {
+      // Check if it's an insufficient balance error (trial or credits)
+      if (error.message && (error.message.includes('balance insufficient') || error.message.includes('Insufficient credits'))) {
+        const isTrial = error.message.includes('Trial balance');
+
         Swal.fire({
           icon: 'warning',
-          title: '💳 Kredit Tidak Mencukupi',
+          title: isTrial ? '⏱️ Minit Percubaan Tidak Mencukupi' : '💳 Kredit Tidak Mencukupi',
           html: `
             <div style="text-align: left;">
-              <p><strong>Kredit anda tidak mencukupi untuk membuat panggilan.</strong></p>
-              <p>${error.message}</p>
+              <p><strong>${error.message}</strong></p>
               <br/>
-              <p>Sila top up kredit anda untuk teruskan.</p>
+              ${isTrial ?
+                '<p>Pilihan anda:</p><ul style="padding-left: 20px;"><li>Tukar ke Pro Account (RM0.15/minit)</li><li>Top up kredit untuk teruskan</li></ul>' :
+                '<p>Sila top up kredit anda untuk teruskan.</p>'
+              }
             </div>
           `,
-          confirmButtonText: 'Top Up Kredit',
+          confirmButtonText: isTrial ? 'Tukar ke Pro / Top Up' : 'Top Up Kredit',
           showCancelButton: true,
           cancelButtonText: 'Tutup',
           confirmButtonColor: '#10b981',
         }).then((result) => {
           if (result.isConfirmed) {
-            // Redirect to credits top-up page
-            window.location.href = '/credits-topup';
+            // Redirect to appropriate page
+            if (isTrial) {
+              // Redirect to settings to switch account type or credits page
+              window.location.href = '/settings';
+            } else {
+              window.location.href = '/credits-topup';
+            }
           }
         });
       } else {

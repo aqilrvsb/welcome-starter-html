@@ -136,15 +136,28 @@ export function AiConfigForm() {
           console.log("Voice config table not ready yet");
         }
 
+        // Get user's account type
+        const { data: userData, error: userError } = await supabase
+          .from("users")
+          .select("account_type")
+          .eq("id", user.id)
+          .single();
+
+        if (userError) {
+          console.error("Error fetching account type:", userError);
+        }
+
         return {
           phone_config: phoneData,
           voice_config: voiceData,
+          account_type: userData?.account_type || 'trial',
         };
       } catch (error) {
         console.error("Error fetching AI config:", error);
         return {
           phone_config: null,
           voice_config: null,
+          account_type: 'trial',
         };
       }
     },
@@ -156,6 +169,9 @@ export function AiConfigForm() {
     if (aiConfig) {
       const phoneConfig = aiConfig.phone_config;
       const voiceConfig = aiConfig.voice_config;
+
+      // Set account type from database
+      setAccountType(aiConfig.account_type || 'trial');
 
       // Reset phone form
       phoneForm.reset({
@@ -404,7 +420,38 @@ export function AiConfigForm() {
             {/* Account Type Selection */}
             <div className="mb-6 p-4 border rounded-lg bg-muted/30">
               <Label className="text-base font-semibold mb-3 block">Select Account Type</Label>
-              <RadioGroup value={accountType} onValueChange={(value: 'trial' | 'pro') => setAccountType(value)} className="space-y-3">
+              <RadioGroup
+                value={accountType}
+                onValueChange={async (value: 'trial' | 'pro') => {
+                  setAccountType(value);
+                  // Save account type to database immediately
+                  if (user?.id) {
+                    try {
+                      const { error } = await supabase
+                        .from('users')
+                        .update({ account_type: value })
+                        .eq('id', user.id);
+
+                      if (error) throw error;
+
+                      toast({
+                        title: 'Account Type Updated',
+                        description: `Switched to ${value === 'trial' ? 'Trial Account (10 minutes free)' : 'Pro Account (RM0.15/min)'}`,
+                      });
+
+                      // Invalidate queries to refresh data
+                      queryClient.invalidateQueries({ queryKey: ['ai-config', user.id] });
+                    } catch (error: any) {
+                      console.error('Error updating account type:', error);
+                      toast({
+                        title: 'Error',
+                        description: 'Failed to update account type',
+                        variant: 'destructive',
+                      });
+                    }
+                  }
+                }}
+                className="space-y-3">
                 <div className="flex items-center space-x-3 p-3 border rounded-lg bg-background hover:bg-muted/50 cursor-pointer">
                   <RadioGroupItem value="trial" id="ai-trial" />
                   <Label htmlFor="ai-trial" className="cursor-pointer flex-1">
