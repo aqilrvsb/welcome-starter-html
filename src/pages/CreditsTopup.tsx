@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import Swal from 'sweetalert2';
 import { formatDistanceToNow } from 'date-fns';
+import { motion } from 'framer-motion';
 
 interface Transaction {
   id: string;
@@ -21,6 +22,30 @@ interface Transaction {
   description: string;
   created_at: string;
 }
+
+// Animation variants
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.5,
+      ease: [0.4, 0, 0.2, 1] as any,
+    },
+  },
+};
 
 export default function CreditsTopup() {
   const { user } = useCustomAuth();
@@ -177,79 +202,142 @@ export default function CreditsTopup() {
 
   return (
     <div className="container mx-auto py-8 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Credits Top-Up</h1>
-        <p className="text-muted-foreground">Buy credits to make AI calls to your customers</p>
-      </div>
+      {/* Header with gradient background */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] as any }}
+        className="p-8 rounded-2xl gradient-card card-soft"
+      >
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-primary-light to-primary-dark bg-clip-text text-transparent mb-3">
+          Credits Top-Up
+        </h1>
+        <p className="text-muted-foreground text-lg">Buy credits to make AI calls to your customers</p>
+      </motion.div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="grid grid-cols-1 md:grid-cols-4 gap-4"
+      >
         {/* Balance Minute */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Balance Minute</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{balanceMinutes.toFixed(1)} min</div>
-          </CardContent>
-        </Card>
+        <motion.div variants={itemVariants}>
+          <motion.div
+            whileHover={{ scale: 1.02, y: -4 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Balance Minutes</CardTitle>
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Wallet className="h-4 w-4 text-primary" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-primary">{balanceMinutes.toFixed(1)} min</div>
+                <p className="text-xs text-muted-foreground mt-1">Available for calls</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
 
         {/* Total Minutes Used - Always show, but displays Pro account usage only */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Minutes Used</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{totalMinutesUsed.toFixed(1)} min</div>
-            <p className="text-xs text-muted-foreground">Pro account usage only</p>
-          </CardContent>
-        </Card>
+        <motion.div variants={itemVariants}>
+          <motion.div
+            whileHover={{ scale: 1.02, y: -4 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Minutes Used</CardTitle>
+                <div className="p-2 rounded-lg bg-blue-500/10">
+                  <TrendingUp className="h-4 w-4 text-blue-600" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-blue-600">{totalMinutesUsed.toFixed(1)} min</div>
+                <p className="text-xs text-muted-foreground mt-1">Pro account usage only</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
 
         {/* Trial Minute */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Trial Minute</CardTitle>
-            <Gift className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{trialMinutesRemaining.toFixed(1)} min</div>
-            <p className="text-xs text-muted-foreground">
-              {trialMinutesUsed.toFixed(1)} / {trialMinutesTotal.toFixed(1)} min used
-            </p>
-          </CardContent>
-        </Card>
+        <motion.div variants={itemVariants}>
+          <motion.div
+            whileHover={{ scale: 1.02, y: -4 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="card-soft border-success/20 transition-smooth hover:border-success/40">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Trial Minutes</CardTitle>
+                <div className="p-2 rounded-lg bg-success/10">
+                  <Gift className="h-4 w-4 text-success" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-success">{trialMinutesRemaining.toFixed(1)} min</div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {trialMinutesUsed.toFixed(1)} / {trialMinutesTotal.toFixed(1)} min used
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
 
         {/* Rate */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Rate</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">RM 0.15</div>
-            <p className="text-xs text-muted-foreground">per minute</p>
-          </CardContent>
-        </Card>
-      </div>
+        <motion.div variants={itemVariants}>
+          <motion.div
+            whileHover={{ scale: 1.02, y: -4 }}
+            transition={{ duration: 0.3 }}
+          >
+            <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Rate</CardTitle>
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <DollarSign className="h-4 w-4 text-primary" />
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold text-primary">RM 0.15</div>
+                <p className="text-xs text-muted-foreground mt-1">per minute</p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        </motion.div>
+      </motion.div>
 
       {/* Pricing Alert */}
-      <Alert className="border-primary/20 bg-primary/5">
-        <Info className="h-4 w-4 text-primary" />
-        <AlertDescription>
-          <div className="space-y-1">
-            <p className="font-medium">Pricing: RM 0.15 per minute</p>
-            <p className="text-sm">
-              This includes AI voice processing, speech recognition, and text-to-speech.
-              Affordable and cost-effective! 🎉
-            </p>
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.4, delay: 0.3 }}
+      >
+        <Alert className="border-primary/30 bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 card-soft">
+          <div className="p-2 rounded-lg bg-primary/20">
+            <Info className="h-4 w-4 text-primary" />
           </div>
-        </AlertDescription>
-      </Alert>
+          <AlertDescription>
+            <div className="space-y-1">
+              <p className="font-semibold text-primary">Pricing: RM 0.15 per minute</p>
+              <p className="text-sm text-muted-foreground">
+                This includes AI voice processing, speech recognition, and text-to-speech.
+                Affordable and cost-effective!
+              </p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      </motion.div>
 
       {/* Top-Up Card */}
-      <Card>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+      >
+        <Card className="card-medium border-primary/20 transition-smooth hover:border-primary/30">
         <CardHeader>
           <CardTitle>Select Top-Up Amount</CardTitle>
           <CardDescription>
@@ -279,79 +367,107 @@ export default function CreditsTopup() {
           </div>
 
           {/* Payment Button */}
-          <Button
-            onClick={handleTopup}
-            disabled={processing || !topupAmount}
-            size="lg"
-            className="w-full"
+          <motion.div
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
-            {processing ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <CreditCard className="w-4 h-4 mr-2" />
-                Pay with Billplz/FPX
-              </>
-            )}
-          </Button>
+            <Button
+              onClick={handleTopup}
+              disabled={processing || !topupAmount}
+              size="lg"
+              className="w-full bg-gradient-to-r from-primary to-primary-dark hover:from-primary-dark hover:to-primary transition-all duration-300 shadow-lg hover:shadow-xl"
+            >
+              {processing ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-4 h-4 mr-2" />
+                  Pay with Billplz/FPX
+                </>
+              )}
+            </Button>
+          </motion.div>
 
           <p className="text-xs text-center text-muted-foreground">
             Secure payment via Billplz. Supports FPX (Malaysian banks).
           </p>
         </CardContent>
-      </Card>
+        </Card>
+      </motion.div>
 
       {/* Transaction History */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
-          <CardDescription>Your latest credits transactions</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {transactions.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              No transactions yet
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {transactions.map((transaction) => {
-                const isCredit = transaction.transaction_type === 'topup' || transaction.transaction_type === 'bonus';
-                const Icon = isCredit ? ArrowUp : ArrowDown;
-                const iconColor = isCredit ? 'text-green-600' : 'text-red-600';
-                const amountColor = isCredit ? 'text-green-600' : 'text-red-600';
-                const amountPrefix = isCredit ? '+' : '-';
-
-                return (
-                  <div key={transaction.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full bg-muted ${iconColor}`}>
-                        <Icon className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">{transaction.description}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(transaction.created_at), { addSuffix: true })}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className={`text-sm font-bold ${amountColor}`}>
-                        {amountPrefix}RM{Math.abs(transaction.amount).toFixed(2)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Balance: RM{transaction.balance_after.toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.5 }}
+      >
+        <Card className="card-medium border-primary/20">
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Wallet className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <CardTitle>Recent Transactions</CardTitle>
+                <CardDescription className="mt-1">Your latest credits transactions</CardDescription>
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
+          </CardHeader>
+          <CardContent>
+            {transactions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-8">
+                No transactions yet
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {transactions.map((transaction, index) => {
+                  const isCredit = transaction.transaction_type === 'topup' || transaction.transaction_type === 'bonus';
+                  const Icon = isCredit ? ArrowUp : ArrowDown;
+                  const iconColor = isCredit ? 'text-success' : 'text-destructive';
+                  const bgColor = isCredit ? 'bg-success/10' : 'bg-destructive/10';
+                  const amountColor = isCredit ? 'text-success' : 'text-destructive';
+                  const amountPrefix = isCredit ? '+' : '-';
+
+                  return (
+                    <motion.div
+                      key={transaction.id}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.3, delay: index * 0.05 }}
+                      className="group"
+                    >
+                      <div className="flex items-center justify-between p-4 border border-primary/10 rounded-lg hover:bg-muted/50 hover:border-primary/30 transition-smooth card-soft">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-full ${bgColor} ${iconColor} transition-smooth group-hover:scale-110`}>
+                            <Icon className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium group-hover:text-primary transition-smooth">{transaction.description}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDistanceToNow(new Date(transaction.created_at), { addSuffix: true })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-sm font-bold ${amountColor}`}>
+                            {amountPrefix}RM{Math.abs(transaction.amount).toFixed(2)}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Balance: RM{transaction.balance_after.toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
     </div>
   );
 }
