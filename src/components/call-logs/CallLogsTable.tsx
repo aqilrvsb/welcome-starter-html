@@ -29,6 +29,7 @@ interface CallLog {
   duration?: number;
   status: string;
   stage_reached?: string;
+  details?: string;
   created_at: string;
   updated_at: string;
   end_of_call_report?: any;
@@ -593,7 +594,7 @@ export function CallLogsTable() {
                     <TableHead>Product</TableHead>
                     <TableHead>Prompt</TableHead>
                     <TableHead>Campaign</TableHead>
-                    <TableHead>Info</TableHead>
+                    <TableHead>Details</TableHead>
                     <TableHead>Stage</TableHead>
                     <TableHead>
                       <Button
@@ -741,7 +742,7 @@ export function CallLogsTable() {
                       <p className="text-xs text-muted-foreground">Product: {(log as any).contacts?.product || '-'}</p>
                       <p className="text-xs text-muted-foreground">Prompt: {(log as any).prompts?.prompt_name || '-'}</p>
                       <p className="text-xs text-muted-foreground">Campaign: {(log as any).campaigns?.campaign_name || '-'}</p>
-                      <p className="text-xs text-muted-foreground">Info: {log.details || '-'}</p>
+                      <p className="text-xs text-muted-foreground">Details: {log.details || '-'}</p>
                       <p className="text-xs text-primary font-medium">Stage: {log.stage_reached || log.metadata?.stage_reached || '-'}</p>
                     </div>
                   </div>
