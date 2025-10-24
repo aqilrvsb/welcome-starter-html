@@ -628,33 +628,38 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
   // If user's prompt contains stage markers, automatically inject tracking rules
   if (stages.length > 0) {
     const trackingRules = `
+⚠️⚠️⚠️ CRITICAL SYSTEM INSTRUCTIONS - FAILURE TO FOLLOW WILL BREAK THE SYSTEM ⚠️⚠️⚠️
 
-📍 IMPORTANT SYSTEM RULES (BACKEND INJECTED - DO NOT IGNORE):
+YOU MUST FOLLOW THESE RULES IN EVERY SINGLE RESPONSE WITHOUT EXCEPTION:
 
-1. STAGE TRACKING (MANDATORY):
-   - You MUST include the stage marker at the START of EVERY response
-   - Format: !!Stage [Nama Stage]!! [your response]
-   - Example: "!!Stage Introduction!! Maaf ganggu cik..."
-   - The customer will NOT see these markers - they are for internal tracking only
-   - Available stages: ${stages.join(', ')}
+1. 🚨 MANDATORY STAGE MARKER 🚨
+   - EVERY response MUST start with: !!Stage [stage name]!!
+   - NO EXCEPTIONS - include this in EVERY response
+   - Format: !!Stage Welcome Message!! or !!Stage Introduction!! or !!Stage Fact Finding!! etc.
+   - The marker is invisible to the customer - it's for backend tracking
+   - If you forget the marker, the system will break
 
-2. DETAILS EXTRACTION:
-   - When you collect important information, wrap it with %%label%%
-   - Example: "Baik, saya catat ya. %%customer_interest: berminat produk A%%"
-   - This saves data to the database automatically
+   Available stages (use EXACTLY these names):
+   ${stages.map(s => `   - !!Stage ${s}!!`).join('\n')}
 
-3. END CALL:
-   - When conversation is complete, include [end_call] at the end
-   - Example: "Terima kasih! Admin akan contact cik. Assalamualaikum." [end_call]
+2. 📝 DETAILS CAPTURE:
+   - When collecting customer info (name, address, product interest), wrap with %%label%%
+   - Example: %%customer_name: Ahmad%% or %%customer_address: Jalan Sultan 123%%
 
-NOW FOLLOW THE PROMPT BELOW:
----
+3. 🛑 END CALL:
+   - When conversation ends, add [end_call] to your last response
+   - Example: "Terima kasih! [end_call]"
+
+❗ REMINDER: Start EVERY response with !!Stage [name]!! - Don't forget!
+
+NOW FOLLOW THE USER'S PROMPT BELOW:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 `;
 
     // Prepend tracking rules to system prompt
     systemPrompt = trackingRules + systemPrompt;
-    console.log(`🤖 Auto-injected stage tracking rules for ${stages.length} stages`);
+    console.log(`🤖 Auto-injected aggressive stage tracking rules for ${stages.length} stages`);
   }
 
   // Initialize session (SAME AS TWILIO!)
@@ -866,6 +871,17 @@ async function getAIResponse(session: any, userMessage: string) {
   try {
     console.log("🤖 Getting AI response...");
 
+    // Add reminder to include stage marker in every response
+    const messagesWithReminder = [...session.conversationHistory];
+
+    // Inject a reminder before the latest user message to force compliance
+    if (session.conversationHistory.length > 1) {
+      messagesWithReminder.push({
+        role: 'system',
+        content: '⚠️ CRITICAL REMINDER: Your next response MUST start with !!Stage [name]!! - Choose the correct stage based on the conversation flow. Do not forget this!'
+      });
+    }
+
     // Direct call to GPT - no filler words for maximum speed
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -875,7 +891,7 @@ async function getAIResponse(session: any, userMessage: string) {
       },
       body: JSON.stringify({
         model: 'openai/gpt-4o-mini',
-        messages: session.conversationHistory,
+        messages: messagesWithReminder,
         temperature: 0.7,
         max_tokens: 150,
       }),
