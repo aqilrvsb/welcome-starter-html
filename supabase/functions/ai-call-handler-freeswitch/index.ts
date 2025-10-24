@@ -885,29 +885,41 @@ async function getAIResponse(session: any, userMessage: string) {
           }
         }
       } else {
-        // 🔍 FALLBACK: If no stage marker in response, check conversation flow
-        // Auto-detect stage progression based on conversation turns
-        if (session.stages && session.stages.length > 0) {
-          const currentIndex = session.stages.indexOf(session.currentStage);
-          const turnCount = session.transcript.filter((t: any) => t.speaker === 'user').length;
+        // 🔍 SMART STAGE DETECTION: Analyze AI response content to detect stage
+        let detectedStage = null;
+        const aiLower = aiResponse.toLowerCase();
 
-          // Progress to next stage every 2-3 customer responses
-          if (turnCount > 0 && turnCount % 2 === 0 && currentIndex < session.stages.length - 1) {
-            const nextStage = session.stages[currentIndex + 1];
-            if (nextStage && nextStage !== session.currentStage) {
-              session.currentStage = nextStage;
-              console.log(`🎯 Auto-progressed to stage: "${nextStage}" (turn ${turnCount})`);
+        // Stage detection patterns based on conversation content
+        if (aiLower.includes('assalamualaikum') || aiLower.match(/ni .+ kan\?/)) {
+          detectedStage = 'Welcome Message';
+        } else if (aiLower.includes('maaf ganggu') || aiLower.includes('dari page') || aiLower.includes('contact kami')) {
+          detectedStage = 'Introduction';
+        } else if (aiLower.includes('boleh cik cerita') || aiLower.includes('masa\'alah') || aiLower.match(/sejak bila|macam mana|pilih-pilih/)) {
+          detectedStage = 'Fact Finding';
+        } else if (aiLower.includes('v\'tec') || aiLower.includes('vtec') || aiLower.includes('mengandungi') || aiLower.includes('bantu')) {
+          detectedStage = 'Present Product';
+        } else if (aiLower.match(/ringgit|harga|promosi|lapan pulooh|siratus/)) {
+          detectedStage = 'Harga';
+        } else if (aiLower.includes('nama penuh') || aiLower.includes('alamat penuh')) {
+          detectedStage = 'Confirmation';
+        } else if (aiLower.includes('admin akan whatsapp') || aiLower.includes('pengesahan')) {
+          detectedStage = 'Dapat Detail';
+        }
 
-              try {
-                await supabaseAdmin
-                  .from('call_logs')
-                  .update({ stage_reached: nextStage })
-                  .eq('call_id', session.callId);
-                console.log(`✅ Auto-stage saved to database: "${nextStage}"`);
-              } catch (err) {
-                console.error(`❌ Error saving auto-stage:`, err);
-              }
-            }
+        // Update stage if detected and different from current
+        if (detectedStage && detectedStage !== session.currentStage) {
+          const oldStage = session.currentStage;
+          session.currentStage = detectedStage;
+          console.log(`🎯 Smart-detected stage transition: "${oldStage}" → "${detectedStage}"`);
+
+          try {
+            await supabaseAdmin
+              .from('call_logs')
+              .update({ stage_reached: detectedStage })
+              .eq('call_id', session.callId);
+            console.log(`✅ Smart-detected stage saved to database: "${detectedStage}"`);
+          } catch (err) {
+            console.error(`❌ Error saving smart-detected stage:`, err);
           }
         }
       }
