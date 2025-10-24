@@ -33,6 +33,9 @@ import TwilioTutorial from "./pages/TwilioTutorial";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
+import AdminCallLogs from "./pages/admin/AdminCallLogs";
+import AdminContacts from "./pages/admin/AdminContacts";
+import AdminCampaigns from "./pages/admin/AdminCampaigns";
 
 // Create QueryClient outside component to avoid recreation
 const queryClient = new QueryClient({
@@ -219,6 +222,30 @@ function App() {
                         element={
                           <CustomProtectedRoute>
                             <AdminUsers />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/call-logs"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminCallLogs />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/contacts"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminContacts />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/campaigns"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminCampaigns />
                           </CustomProtectedRoute>
                         }
                       />
