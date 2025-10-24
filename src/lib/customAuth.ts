@@ -262,38 +262,21 @@ export const getCurrentUser = async (): Promise<User | null> => {
   }
 };
 
-// Change password function using Supabase
-export const changePassword = async (currentPassword: string, newPassword: string): Promise<{ error: string | null }> => {
+// Change password function using Supabase (no current password verification required)
+export const changePassword = async (newPassword: string): Promise<{ error: string | null }> => {
   try {
     const currentUser = getUserFromStorage();
     if (!currentUser) {
       return { error: 'Not authenticated' };
     }
 
-    // Get user data from database
-    const { data: userData, error } = await supabase
-      .from('users')
-      .select('password_hash')
-      .eq('id', currentUser.id)
-      .single();
-
-    if (error || !userData) {
-      return { error: 'User not found' };
-    }
-
-    // Verify current password
-    const isValidPassword = await verifyPassword(currentPassword, userData.password_hash);
-    if (!isValidPassword) {
-      return { error: 'Current password is incorrect' };
-    }
-
     // Hash new password
     const newPasswordHash = await hashPassword(newPassword);
-    
+
     // Update password in database
     const { error: updateError } = await supabase
       .from('users')
-      .update({ 
+      .update({
         password_hash: newPasswordHash,
         updated_at: new Date().toISOString()
       })

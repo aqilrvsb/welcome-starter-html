@@ -11,7 +11,6 @@ import { toast } from 'sonner';
 import { changePassword } from '@/lib/customAuth';
 
 const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1, 'Current password is required'),
   newPassword: z.string().min(6, 'New password must be at least 6 characters'),
   confirmPassword: z.string().min(6, 'Please confirm your new password'),
 }).refine((data) => data.newPassword === data.confirmPassword, {
@@ -23,7 +22,6 @@ type ChangePasswordForm = z.infer<typeof changePasswordSchema>;
 
 export function ChangePasswordSection() {
   const [loading, setLoading] = useState(false);
-  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -39,8 +37,8 @@ export function ChangePasswordSection() {
   const onSubmit = async (data: ChangePasswordForm) => {
     setLoading(true);
     try {
-      const { error } = await changePassword(data.currentPassword, data.newPassword);
-      
+      const { error } = await changePassword(data.newPassword);
+
       if (error) {
         toast.error(error);
         return;
@@ -65,37 +63,6 @@ export function ChangePasswordSection() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {/* Current Password Field */}
-          <div className="space-y-2">
-            <Label htmlFor="currentPassword">Current Password</Label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Lock className="h-4 w-4 text-muted-foreground" />
-              </div>
-              <Input
-                id="currentPassword"
-                type={showCurrentPassword ? 'text' : 'password'}
-                placeholder="Enter your current password"
-                className="pl-10 pr-10"
-                {...register('currentPassword')}
-              />
-              <button
-                type="button"
-                className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
-              >
-                {showCurrentPassword ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" />
-                )}
-              </button>
-            </div>
-            {errors.currentPassword && (
-              <p className="text-sm text-destructive">{errors.currentPassword.message}</p>
-            )}
-          </div>
-
           {/* New Password Field */}
           <div className="space-y-2">
             <Label htmlFor="newPassword">New Password</Label>
