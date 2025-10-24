@@ -8,10 +8,10 @@ import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { 
-  Settings as SettingsIcon, 
-  ArrowLeft, 
-  User, 
+import {
+  Settings as SettingsIcon,
+  ArrowLeft,
+  User,
   Bell,
   Shield,
   CreditCard,
@@ -26,6 +26,7 @@ import { AiConfigForm } from '@/components/settings/AiConfigForm';
 import { ChangePasswordSection } from '@/components/ChangePasswordSection';
 import { BillingSection } from '@/components/billing/BillingSection';
 import { supabase } from '@/integrations/supabase/client';
+import { motion } from 'framer-motion';
 
 
 export default function Settings() {
@@ -144,33 +145,60 @@ export default function Settings() {
     <div className="min-h-screen bg-background">
       <main>
         <div className="container mx-auto px-4 py-8">
-          {/* Header */}
-          <div className="mb-8">
-            <Link 
-              to="/dashboard" 
-              className="inline-flex items-center text-sm text-muted-foreground hover:text-primary mb-4"
+          {/* Back Link */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.4 }}
+            className="mb-4"
+          >
+            <Link
+              to="/dashboard"
+              className="inline-flex items-center text-sm text-muted-foreground hover:text-primary transition-smooth px-3 py-2 rounded-lg hover:bg-primary/5"
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Dashboard
             </Link>
-            <div className="flex items-center space-x-3 mb-2">
-              <div className="hero-gradient p-2 rounded-lg">
-                <SettingsIcon className="h-6 w-6 text-white" />
+          </motion.div>
+
+          {/* Header with gradient */}
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.4, 0, 0.2, 1] as any }}
+            className="p-8 rounded-2xl gradient-card card-soft mb-8"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-3 rounded-lg bg-primary/10">
+                <SettingsIcon className="h-6 w-6 text-primary" />
               </div>
-              <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+              <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-primary-light to-primary-dark bg-clip-text text-transparent">
+                Settings
+              </h1>
             </div>
-            <p className="text-muted-foreground">
+            <p className="text-muted-foreground text-lg">
               Manage your account preferences and application settings
             </p>
-          </div>
+          </motion.div>
 
-          <Tabs defaultValue="profile" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="profile" className="flex items-center space-x-2">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            <Tabs defaultValue="profile" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-2 bg-muted/50 border border-primary/20">
+              <TabsTrigger
+                value="profile"
+                className="flex items-center space-x-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+              >
                 <User className="h-4 w-4" />
                 <span>Profile</span>
               </TabsTrigger>
-              <TabsTrigger value="ai-config" className="flex items-center space-x-2">
+              <TabsTrigger
+                value="ai-config"
+                className="flex items-center space-x-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+              >
                 <SettingsIcon className="h-4 w-4" />
                 <span>AI Config</span>
               </TabsTrigger>
@@ -246,6 +274,7 @@ export default function Settings() {
           <AiConfigForm />
         </TabsContent>
           </Tabs>
+          </motion.div>
         </div>
       </main>
     </div>
