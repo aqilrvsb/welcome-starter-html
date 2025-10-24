@@ -91,16 +91,22 @@ export function AudioPlayerDialog({ recordingUrl, triggerButton, title = "Rakama
     audio.currentTime = Math.max(audio.currentTime - 10, 0);
   };
 
-  const downloadRecording = () => {
+  const downloadRecording = async () => {
     try {
-      // Simple download - HTTPS allows direct access
+      // Fetch and force download instead of opening in new tab
+      const response = await fetch(recordingUrl);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
       const link = document.createElement('a');
-      link.href = recordingUrl;
+      link.href = url;
       link.download = `recording-${Date.now()}.wav`;
-      link.target = '_blank';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+
+      // Clean up blob URL
+      URL.revokeObjectURL(url);
     } catch (error) {
       console.error('Download error:', error);
       setError('Gagal memuat turun rakaman.');
