@@ -624,6 +624,39 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
   }
   console.log(`📊 Detected ${stages.length} stages from prompt:`, stages);
 
+  // 🤖 AUTO-INJECT STAGE TRACKING INSTRUCTIONS
+  // If user's prompt contains stage markers, automatically inject tracking rules
+  if (stages.length > 0) {
+    const trackingRules = `
+
+📍 IMPORTANT SYSTEM RULES (BACKEND INJECTED - DO NOT IGNORE):
+
+1. STAGE TRACKING (MANDATORY):
+   - You MUST include the stage marker at the START of EVERY response
+   - Format: !!Stage [Nama Stage]!! [your response]
+   - Example: "!!Stage Introduction!! Maaf ganggu cik..."
+   - The customer will NOT see these markers - they are for internal tracking only
+   - Available stages: ${stages.join(', ')}
+
+2. DETAILS EXTRACTION:
+   - When you collect important information, wrap it with %%label%%
+   - Example: "Baik, saya catat ya. %%customer_interest: berminat produk A%%"
+   - This saves data to the database automatically
+
+3. END CALL:
+   - When conversation is complete, include [end_call] at the end
+   - Example: "Terima kasih! Admin akan contact cik. Assalamualaikum." [end_call]
+
+NOW FOLLOW THE PROMPT BELOW:
+---
+
+`;
+
+    // Prepend tracking rules to system prompt
+    systemPrompt = trackingRules + systemPrompt;
+    console.log(`🤖 Auto-injected stage tracking rules for ${stages.length} stages`);
+  }
+
   // Initialize session (SAME AS TWILIO!)
   const session = {
     callId,
@@ -911,12 +944,19 @@ async function getAIResponse(session: any, userMessage: string) {
         }
       }
 
+      // 🧹 CLEAN AI RESPONSE: Remove stage markers, details markers, and end_call before speaking
+      // Customer should NOT hear these internal markers
+      let cleanResponse = aiResponse
+        .replace(/!!Stage\s+[^!]+!!/g, '') // Remove !!Stage Name!!
+        .replace(/%%[^%]+%%/g, '') // Remove %%details%%
+        .replace(/\[end_call\]/gi, '') // Remove [end_call]
+        .trim();
+
       // 🛑 END CALL DETECTION: Check if AI response contains end_call command
       if (aiResponse.toLowerCase().includes('end_call')) {
         console.log(`🛑 end_call detected - terminating call after speaking`);
 
-        // Speak the response first (without the end_call command)
-        const cleanResponse = aiResponse.replace(/end_call/gi, '').trim();
+        // Speak the cleaned response first
         if (cleanResponse) {
           await speakToCall(session, cleanResponse);
         }
@@ -946,7 +986,8 @@ async function getAIResponse(session: any, userMessage: string) {
         return; // Don't speak again
       }
 
-      await speakToCall(session, aiResponse);
+      // Speak the cleaned response (without markers)
+      await speakToCall(session, cleanResponse);
     }
   } catch (error) {
     console.error("❌ AI error:", error);
