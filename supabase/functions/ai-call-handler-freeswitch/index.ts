@@ -31,6 +31,194 @@ const supabaseAdmin = createClient(
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
 );
 
+// ============================================================================
+// TRIAL/PRO ACCOUNT SYSTEM - Helper Functions
+// ============================================================================
+
+/**
+ * Get SIP configuration based on user's account type
+ */
+async function getSipConfig(userId: string) {
+  const { data: user, error: userError } = await supabaseAdmin
+    .from('users')
+    .select('account_type')
+    .eq('id', userId)
+    .single();
+
+  if (userError) {
+    console.error('❌ Failed to fetch user account type:', userError);
+    throw new Error(`Failed to fetch account type: ${userError.message}`);
+  }
+
+  const accountType = user?.account_type || 'trial';
+  console.log(`📋 User ${userId} account type: ${accountType}`);
+
+  if (accountType === 'trial') {
+    // Trial: Use environment variable credentials (shared trunk)
+    const sipConfig = {
+      sip_username: Deno.env.get('TRIAL_SIP_USERNAME') || '646006395',
+      sip_password: Deno.env.get('TRIAL_SIP_PASSWORD') || 'Xh7Yk5Ydcg',
+      sip_proxy_primary: Deno.env.get('TRIAL_SIP_PROXY') || 'sip3.alienvoip.com',
+      sip_caller_id: Deno.env.get('TRIAL_CALLER_ID') || '010894904',
+      gateway_name: 'external',
+    };
+
+    console.log(`✅ TRIAL SIP: ${sipConfig.sip_username}@${sipConfig.sip_proxy_primary}`);
+    return { accountType: 'trial', sipConfig };
+  } else {
+    // Pro: Fetch user's own SIP credentials from phone_config
+    const { data: phoneConfig, error: phoneError } = await supabaseAdmin
+      .from('phone_config')
+      .select('sip_username, sip_password, sip_proxy_primary, sip_caller_id')
+      .eq('user_id', userId)
+      .single();
+
+    if (phoneError || !phoneConfig) {
+      throw new Error('Pro account requires SIP configuration. Please configure your SIP trunk in Settings.');
+    }
+
+    const sipConfig = {
+      sip_username: phoneConfig.sip_username,
+      sip_password: phoneConfig.sip_password,
+      sip_proxy_primary: phoneConfig.sip_proxy_primary,
+      sip_caller_id: phoneConfig.sip_caller_id || '010894904',
+      gateway_name: 'external',
+    };
+
+    console.log(`✅ PRO SIP: ${sipConfig.sip_username}@${sipConfig.sip_proxy_primary}`);
+    return { accountType: 'pro', sipConfig };
+  }
+}
+
+/**
+ * Validate user balance before making calls
+ */
+async function validateBalance(userId: string, estimatedMinutes: number) {
+  const { data: user, error } = await supabaseAdmin
+    .from('users')
+    .select('account_type, trial_minutes_total, trial_minutes_used, credits_balance')
+    .eq('id', userId)
+    .single();
+
+  if (error) throw new Error('Failed to fetch user balance');
+
+  const accountType = user?.account_type || 'trial';
+
+  if (accountType === 'trial') {
+    const trialTotal = user?.trial_minutes_total || 10.0;
+    const trialUsed = user?.trial_minutes_used || 0;
+    const trialRemaining = trialTotal - trialUsed;
+
+    if (trialRemaining <= 0) {
+      throw new Error('Insufficient credits: Trial balance is 0. Please switch to Pro Account or top up credits.');
+    }
+
+    if (trialRemaining < estimatedMinutes) {
+      throw new Error(
+        `Insufficient credits: You have ${trialRemaining.toFixed(1)} trial minutes but need ~${estimatedMinutes} min. Switch to Pro or top up.`
+      );
+    }
+
+    console.log(`✅ Trial balance: ${trialRemaining.toFixed(1)} min remaining`);
+    return { accountType: 'trial', balanceMinutes: trialRemaining };
+  } else {
+    const creditsBalance = user?.credits_balance || 0;
+    const balanceMinutes = creditsBalance / 0.15;
+    const estimatedCost = estimatedMinutes * 0.15;
+
+    if (creditsBalance <= 0) {
+      throw new Error('Insufficient credits: Balance is RM0.00. Please top up credits.');
+    }
+
+    if (balanceMinutes < estimatedMinutes) {
+      throw new Error(
+        `Insufficient credits: You have ${balanceMinutes.toFixed(1)} min (RM${creditsBalance.toFixed(2)}) but need ~${estimatedMinutes} min (RM${estimatedCost.toFixed(2)}).`
+      );
+    }
+
+    console.log(`✅ Pro balance: ${balanceMinutes.toFixed(1)} min (RM${creditsBalance.toFixed(2)})`);
+    return { accountType: 'pro', balanceMinutes, creditsBalance };
+  }
+}
+
+/**
+ * Deduct credits after call completes
+ */
+async function deductCreditsAfterCall(userId: string, callDurationMinutes: number) {
+  const { data: user, error: userError } = await supabaseAdmin
+    .from('users')
+    .select('account_type, trial_minutes_used, credits_balance, total_minutes_used')
+    .eq('id', userId)
+    .single();
+
+  if (userError) {
+    console.error('❌ Failed to fetch user for credit deduction:', userError);
+    return;
+  }
+
+  const accountType = user?.account_type || 'trial';
+
+  if (accountType === 'trial') {
+    const newTrialUsed = (user.trial_minutes_used || 0) + callDurationMinutes;
+    const newTotalUsed = (user.total_minutes_used || 0) + callDurationMinutes;
+
+    console.log(`💳 [TRIAL] Deducting ${callDurationMinutes.toFixed(2)} min`);
+
+    const { error: updateError } = await supabaseAdmin
+      .from('users')
+      .update({
+        trial_minutes_used: newTrialUsed,
+        total_minutes_used: newTotalUsed,
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('❌ Failed to update trial minutes:', updateError);
+    } else {
+      console.log(`✅ Trial: ${newTrialUsed.toFixed(2)} min used total`);
+    }
+  } else {
+    const cost = callDurationMinutes * 0.15;
+    const balanceBefore = user.credits_balance || 0;
+    const balanceAfter = balanceBefore - cost;
+    const newTotalUsed = (user.total_minutes_used || 0) + callDurationMinutes;
+
+    console.log(`💳 [PRO] Deducting RM${cost.toFixed(2)} (${callDurationMinutes.toFixed(2)} min × RM0.15)`);
+
+    const { error: updateError } = await supabaseAdmin
+      .from('users')
+      .update({
+        credits_balance: balanceAfter,
+        total_minutes_used: newTotalUsed,
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('❌ Failed to update credits:', updateError);
+      return;
+    }
+
+    const { error: transactionError } = await supabaseAdmin
+      .from('credits_transactions')
+      .insert({
+        user_id: userId,
+        transaction_type: 'usage',
+        amount: -cost,
+        balance_before: balanceBefore,
+        balance_after: balanceAfter,
+        description: `Call usage - ${callDurationMinutes.toFixed(2)} min @ RM0.15/min`,
+      });
+
+    if (transactionError) {
+      console.error('❌ Failed to log transaction:', transactionError);
+    } else {
+      console.log(`✅ Pro: RM${balanceAfter.toFixed(2)} remaining`);
+    }
+  }
+}
+
+// ============================================================================
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -87,8 +275,9 @@ serve(async (req) => {
         const endTime = new Date();
         const durationMs = endTime.getTime() - session.startTime.getTime();
         const durationSeconds = Math.floor(durationMs / 1000);
+        const durationMinutes = durationSeconds / 60; // Minutes for credit deduction
 
-        console.log(`⏱️  Call duration: ${durationSeconds} seconds`);
+        console.log(`⏱️  Call duration: ${durationSeconds} seconds (${durationMinutes.toFixed(2)} minutes)`);
 
         // 📝 Format transcript as readable text
         const transcriptText = session.transcript
@@ -98,8 +287,7 @@ serve(async (req) => {
           })
           .join('\n\n');
 
-        // 💰 Calculate cost (RM 0.15 per minute or less)
-        const durationMinutes = Math.ceil(durationSeconds / 60); // Round up to nearest minute
+        // 💰 Calculate cost (RM 0.15 per minute)
         const cost = durationMinutes * 0.15;
 
         console.log(`💰 Cost: RM ${cost.toFixed(2)} (${durationMinutes} minute(s))`);
@@ -134,6 +322,11 @@ serve(async (req) => {
           console.error(`❌ Database error:`, err);
         }
 
+        // ✅ DEDUCT CREDITS based on account type
+        if (session.userId && durationMinutes > 0) {
+          await deductCreditsAfterCall(session.userId, durationMinutes);
+        }
+
         // Clean up session
         activeCalls.delete(callId);
         console.log(`🧹 Session ${callId} cleaned up`);
@@ -164,6 +357,14 @@ async function handleBatchCall(req: Request): Promise<Response> {
       .single();
 
     if (!userData) throw new Error('User not found');
+
+    // ✅ VALIDATE BALANCE before proceeding
+    const estimatedMinutes = phoneNumbers.length * 2; // 2 min per call estimate
+    await validateBalance(userId, estimatedMinutes);
+
+    // ✅ GET SIP CONFIGURATION based on account type
+    const { accountType, sipConfig } = await getSipConfig(userId);
+    console.log(`🎯 Account: ${accountType} | SIP: ${sipConfig.sip_username}@${sipConfig.sip_proxy_primary}`);
 
     // Get prompt
     const { data: prompt } = await supabaseAdmin
@@ -219,6 +420,7 @@ async function handleBatchCall(req: Request): Promise<Response> {
           campaignId: campaign?.id || null, // Can be null if no campaign
           promptId: prompt.id,
           websocketUrl: WEBSOCKET_URL,
+          sipConfig: sipConfig, // ✅ Pass SIP config
         });
 
         // 🎯 Extract first stage from prompt for initial stage_reached value
@@ -299,7 +501,10 @@ async function handleBatchCall(req: Request): Promise<Response> {
  * Originate call via FreeSWITCH ESL with mod_audio_stream
  */
 async function originateCallWithAudioStream(params: any): Promise<string> {
-  const { phoneNumber, userId, campaignId, promptId, websocketUrl } = params;
+  const { phoneNumber, userId, campaignId, promptId, websocketUrl, sipConfig } = params;
+
+  // ✅ Log which SIP configuration we're using
+  console.log(`📞 SIP Gateway: ${sipConfig.gateway_name} | User: ${sipConfig.sip_username}@${sipConfig.sip_proxy_primary}`);
 
   const conn = await Deno.connect({
     hostname: FREESWITCH_HOST,
