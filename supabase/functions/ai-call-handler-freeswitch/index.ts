@@ -848,12 +848,20 @@ YOU MUST FOLLOW THESE RULES IN EVERY SINGLE RESPONSE WITHOUT EXCEPTION:
    ${stages.map(s => `   - !!Stage ${s}!!`).join('\n')}
 
 2. 📝 DETAILS CAPTURE:
-   - When collecting customer info (name, address, product interest), wrap with %%label%%
-   - Example: %%customer_name: Ahmad%% or %%customer_address: Jalan Sultan 123%%
+   - When collecting ALL customer details (package, price, address), wrap EVERYTHING in %% markers
+   - IMPORTANT: Use opening %% and closing %% to wrap all details
+   - Format: %%Pakej: [package]\nHarga: [price]\nAlamat: [full address]%%
+   - Example:
+     %%Pakej: 2 Botol
+     Harga: RM100
+     Alamat: No 123, Jalan Sultan, Kampung Baru%%
+   - The details between %% will be saved to database automatically
 
-3. 🛑 END CALL:
-   - When conversation ends, add [end_call] to your last response
-   - Example: "Terima kasih! [end_call]"
+3. 🛑 END CALL - MANDATORY:
+   - When conversation ends, MUST add [end_call] keyword at the end
+   - Format: "Terima kasih! [end_call]"
+   - Without [end_call], the call will NOT terminate
+   - Example: "Sekejap lagi admin akan whatsapp cik. Terima kasih! [end_call]"
 
 ❗ REMINDER: Start EVERY response with !!Stage [name]!! - Don't forget!
 
@@ -1140,10 +1148,12 @@ async function getAIResponse(session: any, userMessage: string) {
       }
 
       // 📝 DETAILS EXTRACTION: Extract details BEFORE cleaning
+      // Use regex to find content between %% markers (supports multiline)
       const detailsMatch = aiResponse.match(/%%(.+?)%%/s);
       if (detailsMatch) {
         const details = detailsMatch[1].trim();
-        console.log(`📝 Extracted details: "${details}"`);
+        console.log(`📝 Extracted details (${details.length} chars):`);
+        console.log(details);
 
         // Save details to database
         try {
@@ -1155,10 +1165,16 @@ async function getAIResponse(session: any, userMessage: string) {
           if (detailsError) {
             console.error(`❌ Failed to save details to database:`, detailsError);
           } else {
-            console.log(`✅ Details saved to database`);
+            console.log(`✅ Details saved to database successfully`);
           }
         } catch (dbError) {
           console.error(`❌ Database error saving details:`, dbError);
+        }
+      } else {
+        // Log if AI should have provided details but didn't
+        if (aiResponse.includes('%%')) {
+          console.warn(`⚠️ AI response contains %% but format is incorrect - check AI output`);
+          console.warn(`   AI Response: ${aiResponse.substring(0, 200)}...`);
         }
       }
 
