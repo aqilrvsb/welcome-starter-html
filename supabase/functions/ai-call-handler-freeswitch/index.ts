@@ -885,12 +885,9 @@ async function getAIResponse(session: any, userMessage: string) {
     const aiResponse = data.choices[0]?.message?.content;
 
     if (aiResponse) {
-      console.log(`💬 AI: "${aiResponse}"`);
+      console.log(`💬 AI (raw): "${aiResponse}"`);
 
-      session.conversationHistory.push({ role: 'assistant', content: aiResponse });
-      session.transcript.push({ speaker: 'assistant', text: aiResponse, timestamp: new Date() });
-
-      // 🎯 STAGE DETECTION: Check if AI response contains stage marker
+      // 🎯 STAGE DETECTION: Extract stage marker BEFORE cleaning
       const stageMatch = aiResponse.match(/!!Stage\s+([^!]+)!!/);
       if (stageMatch) {
         const newStage = stageMatch[1].trim();
@@ -921,7 +918,7 @@ async function getAIResponse(session: any, userMessage: string) {
         console.log(`⚠️ No !!Stage marker!! found in AI response - AI should include stage markers!`);
       }
 
-      // 📝 DETAILS EXTRACTION: Check if AI response contains %% wrapped content
+      // 📝 DETAILS EXTRACTION: Extract details BEFORE cleaning
       const detailsMatch = aiResponse.match(/%%(.+?)%%/s);
       if (detailsMatch) {
         const details = detailsMatch[1].trim();
@@ -944,13 +941,20 @@ async function getAIResponse(session: any, userMessage: string) {
         }
       }
 
-      // 🧹 CLEAN AI RESPONSE: Remove stage markers, details markers, and end_call before speaking
-      // Customer should NOT hear these internal markers
+      // 🧹 CLEAN AI RESPONSE: Remove all internal markers
+      // This cleaned version is what customer hears AND sees in transcript
       let cleanResponse = aiResponse
         .replace(/!!Stage\s+[^!]+!!/g, '') // Remove !!Stage Name!!
         .replace(/%%[^%]+%%/g, '') // Remove %%details%%
         .replace(/\[end_call\]/gi, '') // Remove [end_call]
         .trim();
+
+      console.log(`💬 AI (clean): "${cleanResponse}"`);
+
+      // Save CLEANED response to conversation history and transcript
+      // Customer only sees/hears the clean version
+      session.conversationHistory.push({ role: 'assistant', content: cleanResponse });
+      session.transcript.push({ speaker: 'assistant', text: cleanResponse, timestamp: new Date() });
 
       // 🛑 END CALL DETECTION: Check if AI response contains end_call command
       if (aiResponse.toLowerCase().includes('end_call')) {
