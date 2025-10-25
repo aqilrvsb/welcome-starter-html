@@ -1084,18 +1084,19 @@ async function getAIResponse(session: any, userMessage: string) {
   try {
     console.log("🤖 Getting AI response...");
 
-    // Add reminder to include stage marker in every response
-    const messagesWithReminder = [...session.conversationHistory];
-
-    // Inject a reminder before the latest user message to force compliance
+    // Inject a reminder before the latest user message to force compliance (optimized: no array copy)
+    let messages = session.conversationHistory;
     if (session.conversationHistory.length > 1) {
-      messagesWithReminder.push({
-        role: 'system',
-        content: '⚠️ CRITICAL REMINDER: Your next response MUST start with !!Stage [name]!! - Choose the correct stage based on the conversation flow. Do not forget this!'
-      });
+      messages = [
+        ...session.conversationHistory,
+        {
+          role: 'system',
+          content: '⚠️ CRITICAL REMINDER: Your next response MUST start with !!Stage [name]!! - Choose the correct stage based on the conversation flow. Do not forget this!'
+        }
+      ];
     }
 
-    // Direct call to GPT - no filler words for maximum speed
+    // Direct call to Claude - no filler words for maximum speed
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -1103,8 +1104,8 @@ async function getAIResponse(session: any, userMessage: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-4o-mini',
-        messages: messagesWithReminder,
+        model: 'anthropic/claude-3.5-haiku',
+        messages: messages,
         temperature: 0.7,
         max_tokens: 150,
       }),
@@ -1127,21 +1128,15 @@ async function getAIResponse(session: any, userMessage: string) {
           session.currentStage = newStage;
           console.log(`🎯 Stage transition: "${oldStage}" → "${newStage}"`);
 
-          // Update database with new stage
-          try {
-            const { error: updateError } = await supabaseAdmin
-              .from('call_logs')
-              .update({ stage_reached: newStage })
-              .eq('call_id', session.callId);
-
-            if (updateError) {
-              console.error(`❌ Failed to update stage in database:`, updateError);
-            } else {
-              console.log(`✅ Stage saved to database: "${newStage}"`);
-            }
-          } catch (dbError) {
-            console.error(`❌ Database error updating stage:`, dbError);
-          }
+          // Update database with new stage (non-blocking for faster response)
+          supabaseAdmin
+            .from('call_logs')
+            .update({ stage_reached: newStage })
+            .eq('call_id', session.callId)
+            .then(({ error }) => {
+              if (error) console.error(`❌ Failed to update stage:`, error);
+              else console.log(`✅ Stage saved: "${newStage}"`);
+            });
         }
       } else {
         console.log(`⚠️ No !!Stage marker!! found in AI response - AI should include stage markers!`);
@@ -1155,21 +1150,15 @@ async function getAIResponse(session: any, userMessage: string) {
         console.log(`📝 Extracted details (${details.length} chars):`);
         console.log(details);
 
-        // Save details to database
-        try {
-          const { error: detailsError } = await supabaseAdmin
-            .from('call_logs')
-            .update({ details: details })
-            .eq('call_id', session.callId);
-
-          if (detailsError) {
-            console.error(`❌ Failed to save details to database:`, detailsError);
-          } else {
-            console.log(`✅ Details saved to database successfully`);
-          }
-        } catch (dbError) {
-          console.error(`❌ Database error saving details:`, dbError);
-        }
+        // Save details to database (non-blocking for faster response)
+        supabaseAdmin
+          .from('call_logs')
+          .update({ details: details })
+          .eq('call_id', session.callId)
+          .then(({ error }) => {
+            if (error) console.error(`❌ Failed to save details:`, error);
+            else console.log(`✅ Details saved successfully`);
+          });
       } else {
         // Log if AI should have provided details but didn't
         if (aiResponse.includes('%%')) {
@@ -1202,8 +1191,8 @@ async function getAIResponse(session: any, userMessage: string) {
           await speakToCall(session, cleanResponse);
         }
 
-        // Wait a bit for the speech to finish
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Wait for speech to finish (optimized from 2000ms to 500ms)
+        await new Promise(resolve => setTimeout(resolve, 500));
 
         // Hangup the call
         try {
@@ -1383,42 +1372,40 @@ async function playAudioChunks(session: any, chunks: Uint8Array[]): Promise<void
     const audioDurationMs = (combined.length / 16000) * 1000;
     console.log(`⏱️  Audio duration: ${audioDurationMs.toFixed(0)}ms`);
 
-    // Play via FreeSWITCH
-    setTimeout(async () => {
-      try {
-        const conn = await Deno.connect({
-          hostname: FREESWITCH_HOST,
-          port: FREESWITCH_ESL_PORT,
-        });
+    // Play via FreeSWITCH (optimized: removed 100ms delay)
+    try {
+      const conn = await Deno.connect({
+        hostname: FREESWITCH_HOST,
+        port: FREESWITCH_ESL_PORT,
+      });
 
-        await readESLResponse(conn);
-        await sendESLCommand(conn, `auth ${FREESWITCH_ESL_PASSWORD}`);
-        await readESLResponse(conn);
+      await readESLResponse(conn);
+      await sendESLCommand(conn, `auth ${FREESWITCH_ESL_PASSWORD}`);
+      await readESLResponse(conn);
 
-        const fileNum = session.audioFileCounter || 0;
-        session.audioFileCounter = fileNum + 1;
-        const audioFile = `/tmp/${session.callId}_${fileNum}.tmp.r8`;
+      const fileNum = session.audioFileCounter || 0;
+      session.audioFileCounter = fileNum + 1;
+      const audioFile = `/tmp/${session.callId}_${fileNum}.tmp.r8`;
 
-        const fileString = `file_string://{rate=8000,channels=1}${audioFile}`;
-        const broadcastCmd = `api uuid_broadcast ${session.callId} ${fileString} aleg`;
-        console.log(`🎵 Playing streamed audio: ${broadcastCmd}`);
+      const fileString = `file_string://{rate=8000,channels=1}${audioFile}`;
+      const broadcastCmd = `api uuid_broadcast ${session.callId} ${fileString} aleg`;
+      console.log(`🎵 Playing streamed audio: ${broadcastCmd}`);
 
-        await sendESLCommand(conn, broadcastCmd);
-        const broadcastResponse = await readESLResponse(conn);
-        console.log(`🎵 Broadcast response: ${broadcastResponse}`);
+      await sendESLCommand(conn, broadcastCmd);
+      const broadcastResponse = await readESLResponse(conn);
+      console.log(`🎵 Broadcast response: ${broadcastResponse}`);
 
-        conn.close();
+      conn.close();
 
-        setTimeout(() => {
-          session.isSpeaking = false;
-          console.log("✅ Streamed audio playback complete");
-        }, audioDurationMs + 500);
-
-      } catch (error) {
-        console.error("❌ Error playing streamed audio:", error);
+      setTimeout(() => {
         session.isSpeaking = false;
-      }
-    }, 100);
+        console.log("✅ Streamed audio playback complete");
+      }, audioDurationMs + 200);
+
+    } catch (error) {
+      console.error("❌ Error playing streamed audio:", error);
+      session.isSpeaking = false;
+    }
   } else {
     session.isSpeaking = false;
   }
