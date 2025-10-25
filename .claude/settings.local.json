@@ -35,7 +35,8 @@
       "Bash(git restore:*)",
       "Read(//c/Users/aqilz/Documents/**)",
       "Bash(wrangler --version:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []

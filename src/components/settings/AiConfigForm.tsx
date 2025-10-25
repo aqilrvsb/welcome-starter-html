@@ -31,6 +31,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ApiKeysForm } from "@/components/api-keys/ApiKeysForm";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ProApplicationForm } from "@/components/settings/ProApplicationForm";
 
 // Schema for phone configuration - FreeSWITCH + SIP Trunk
 const phoneConfigSchema = z.object({
@@ -469,11 +470,21 @@ export function AiConfigForm() {
               </RadioGroup>
             </div>
 
-            {/* SIP Configuration removed - now managed by admin only */}
-            <p className="text-sm text-muted-foreground">
-              SIP trunk configuration is now managed by administrators. If you need a Pro account with custom SIP settings,
-              please contact support or submit a request through the Roadmap feature.
-            </p>
+            {/* Show Pro Application Form when Pro account is selected */}
+            {accountType === 'pro' && (
+              <div className="mt-6">
+                <ProApplicationForm />
+              </div>
+            )}
+
+            {accountType === 'trial' && (
+              <Alert className="mt-6">
+                <Info className="h-4 w-4" />
+                <AlertDescription>
+                  You're using a Trial account with 10 minutes of free calling. To get unlimited calling at RM0.15/minute, switch to Pro account and submit your application.
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
 
           <Separator />
