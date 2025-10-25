@@ -105,7 +105,7 @@ CREATE POLICY "Admins can view all feature requests"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@aicallpro.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -117,7 +117,7 @@ CREATE POLICY "Admins can update all feature requests"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@aicallpro.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -149,7 +149,7 @@ CREATE POLICY "Admins can view all pro applications"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@aicallpro.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -161,7 +161,7 @@ CREATE POLICY "Admins can update all pro applications"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@aicallpro.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -181,7 +181,7 @@ CREATE POLICY "Admins can read all settings"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@aicallpro.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -193,7 +193,7 @@ CREATE POLICY "Admins can insert settings"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@aicallpro.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -205,7 +205,7 @@ CREATE POLICY "Admins can update settings"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@aicallpro.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 

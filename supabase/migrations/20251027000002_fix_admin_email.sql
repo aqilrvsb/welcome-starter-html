@@ -1,4 +1,4 @@
--- Fix admin email from 'admin@aicallpro.com' to 'admin@gmail.com' in all RLS policies
+-- Fix admin email to only use 'admin@gmail.com' in all RLS policies
 
 -- Drop and recreate all admin policies with correct email
 
@@ -10,7 +10,7 @@
 DROP POLICY IF EXISTS "Admins can view all feature requests" ON public.feature_requests;
 DROP POLICY IF EXISTS "Admins can update all feature requests" ON public.feature_requests;
 
--- Recreate with correct email
+-- Recreate with correct email (admin@gmail.com only)
 CREATE POLICY "Admins can view all feature requests"
   ON public.feature_requests
   FOR SELECT
@@ -18,7 +18,7 @@ CREATE POLICY "Admins can view all feature requests"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@gmail.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -29,7 +29,7 @@ CREATE POLICY "Admins can update all feature requests"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@gmail.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -41,7 +41,7 @@ CREATE POLICY "Admins can update all feature requests"
 DROP POLICY IF EXISTS "Admins can view all pro applications" ON public.pro_applications;
 DROP POLICY IF EXISTS "Admins can update all pro applications" ON public.pro_applications;
 
--- Recreate with correct email
+-- Recreate with correct email (admin@gmail.com only)
 CREATE POLICY "Admins can view all pro applications"
   ON public.pro_applications
   FOR SELECT
@@ -49,7 +49,7 @@ CREATE POLICY "Admins can view all pro applications"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@gmail.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -60,7 +60,7 @@ CREATE POLICY "Admins can update all pro applications"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@gmail.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -73,7 +73,7 @@ DROP POLICY IF EXISTS "Admins can read all settings" ON public.system_settings;
 DROP POLICY IF EXISTS "Admins can insert settings" ON public.system_settings;
 DROP POLICY IF EXISTS "Admins can update settings" ON public.system_settings;
 
--- Recreate with correct email
+-- Recreate with correct email (admin@gmail.com only)
 CREATE POLICY "Admins can read all settings"
   ON public.system_settings
   FOR SELECT
@@ -81,7 +81,7 @@ CREATE POLICY "Admins can read all settings"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@gmail.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -92,7 +92,7 @@ CREATE POLICY "Admins can insert settings"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@gmail.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -103,7 +103,7 @@ CREATE POLICY "Admins can update settings"
     EXISTS (
       SELECT 1 FROM public.users
       WHERE users.id = auth.uid()
-      AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@gmail.com')
+      AND users.email = 'admin@gmail.com'
     )
   );
 
@@ -114,7 +114,7 @@ CREATE POLICY "Admins can update settings"
 -- Drop existing admin storage policy
 DROP POLICY IF EXISTS "Admins can view all pro application documents" ON storage.objects;
 
--- Recreate with correct email
+-- Recreate with correct email (admin@gmail.com only)
 CREATE POLICY "Admins can view all pro application documents"
 ON storage.objects
 FOR SELECT
@@ -124,6 +124,6 @@ USING (
   EXISTS (
     SELECT 1 FROM public.users
     WHERE users.id = auth.uid()
-    AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@gmail.com')
+    AND users.email = 'admin@gmail.com'
   )
 );

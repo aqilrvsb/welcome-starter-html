@@ -61,6 +61,6 @@ USING (
   EXISTS (
     SELECT 1 FROM public.users
     WHERE users.id = auth.uid()
-    AND users.email IN ('aqilzulkiflee@gmail.com', 'admin@aicallpro.com')
+    AND users.email = 'admin@gmail.com'
   )
 );
