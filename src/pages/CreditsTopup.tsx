@@ -5,12 +5,12 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, CreditCard, Wallet, TrendingUp, DollarSign, Info, Clock, Gift, ArrowUp, ArrowDown } from 'lucide-react';
+import { Loader2, CreditCard, Wallet, TrendingUp, DollarSign, Info, Clock, Gift, ArrowUp, ArrowDown, FileText, ExternalLink } from 'lucide-react';
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import Swal from 'sweetalert2';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format, parseISO, startOfMonth, isSameMonth } from 'date-fns';
 import { motion } from 'framer-motion';
 
 interface Transaction {
@@ -21,6 +21,8 @@ interface Transaction {
   balance_after: number;
   description: string;
   created_at: string;
+  status?: string; // For payments
+  source?: 'payment' | 'transaction'; // To distinguish source
 }
 
 // Animation variants
@@ -97,19 +99,81 @@ export default function CreditsTopup() {
       setProMinutesUsed(proOnlyMins);
       setTotalMinutesUsed(proOnlyMins); // Show Pro-only minutes in "Total Minutes Used" card
 
-      // Get recent transactions
-      const { data: transactionsData, error: transactionsError } = await supabase
-        .from('credits_transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
+      // Get ALL transactions - both payments and credits_transactions
+      // This will show: successful payments, failed payments, cancelled payments, and usage deductions
+      const [paymentsResult, transactionsResult] = await Promise.all([
+        // Get payments (top-ups with status)
+        supabase
+          .from('payments')
+          .select('id, amount, status, created_at, metadata')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false }),
 
-      if (transactionsError) {
-        console.error('Error loading transactions:', transactionsError);
-      } else {
-        setTransactions(transactionsData || []);
+        // Get credits transactions (top-ups and deductions)
+        supabase
+          .from('credits_transactions')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+      ]);
+
+      // Combine and format all transactions
+      const allTransactions: Transaction[] = [];
+
+      // Add payments with status
+      if (paymentsResult.data) {
+        paymentsResult.data.forEach((payment: any) => {
+          let description = `Payment ${payment.status}`;
+          let transaction_type = 'topup';
+
+          if (payment.metadata?.description) {
+            description = payment.metadata.description;
+          } else if (payment.metadata?.type === 'credits_topup') {
+            description = `Credits Top-up RM${payment.amount}`;
+          }
+
+          // Map status to transaction type
+          if (payment.status === 'paid') {
+            transaction_type = 'topup';
+            description = `✅ ${description}`;
+          } else if (payment.status === 'pending') {
+            transaction_type = 'pending';
+            description = `⏳ ${description} (Pending)`;
+          } else if (payment.status === 'failed' || payment.status === 'cancelled') {
+            transaction_type = 'failed';
+            description = `❌ ${description} (${payment.status})`;
+          }
+
+          allTransactions.push({
+            id: payment.id,
+            transaction_type,
+            amount: payment.amount,
+            balance_before: 0,
+            balance_after: 0,
+            description,
+            created_at: payment.created_at,
+            status: payment.status,
+            source: 'payment'
+          });
+        });
       }
+
+      // Add credits transactions
+      if (transactionsResult.data) {
+        transactionsResult.data.forEach((trans: any) => {
+          allTransactions.push({
+            ...trans,
+            source: 'transaction'
+          });
+        });
+      }
+
+      // Sort by date (newest first) and limit to 50
+      allTransactions.sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+
+      setTransactions(allTransactions.slice(0, 50));
 
     } catch (error: any) {
       console.error('Error loading credits:', error);
@@ -422,47 +486,101 @@ export default function CreditsTopup() {
                 No transactions yet
               </p>
             ) : (
-              <div className="space-y-3">
-                {transactions.map((transaction, index) => {
-                  const isCredit = transaction.transaction_type === 'topup' || transaction.transaction_type === 'bonus';
-                  const Icon = isCredit ? ArrowUp : ArrowDown;
-                  const iconColor = isCredit ? 'text-success' : 'text-destructive';
-                  const bgColor = isCredit ? 'bg-success/10' : 'bg-destructive/10';
-                  const amountColor = isCredit ? 'text-success' : 'text-destructive';
-                  const amountPrefix = isCredit ? '+' : '-';
+              <div className="space-y-6">
+                {(() => {
+                  // Group transactions by month
+                  const groupedByMonth: { [key: string]: Transaction[] } = {};
 
-                  return (
-                    <motion.div
-                      key={transaction.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.05 }}
-                      className="group"
-                    >
-                      <div className="flex items-center justify-between p-4 border border-primary/10 rounded-lg hover:bg-muted/50 hover:border-primary/30 transition-smooth card-soft">
-                        <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-full ${bgColor} ${iconColor} transition-smooth group-hover:scale-110`}>
-                            <Icon className="h-4 w-4" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium group-hover:text-primary transition-smooth">{transaction.description}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(new Date(transaction.created_at), { addSuffix: true })}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className={`text-sm font-bold ${amountColor}`}>
-                            {amountPrefix}RM{Math.abs(transaction.amount).toFixed(2)}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Balance: RM{transaction.balance_after.toFixed(2)}
-                          </p>
-                        </div>
+                  transactions.forEach((transaction) => {
+                    const date = parseISO(transaction.created_at);
+                    const monthKey = format(date, 'MMMM yyyy');
+
+                    if (!groupedByMonth[monthKey]) {
+                      groupedByMonth[monthKey] = [];
+                    }
+                    groupedByMonth[monthKey].push(transaction);
+                  });
+
+                  return Object.entries(groupedByMonth).map(([month, monthTransactions]) => (
+                    <div key={month} className="space-y-3">
+                      {/* Month Header */}
+                      <div className="flex items-center gap-2 pb-2 border-b">
+                        <h3 className="text-sm font-semibold text-primary">{month}</h3>
+                        <Badge variant="secondary" className="text-xs">
+                          {monthTransactions.length} transactions
+                        </Badge>
                       </div>
-                    </motion.div>
-                  );
-                })}
+
+                      {/* Transactions for this month */}
+                      {monthTransactions.map((transaction, index) => {
+                        const isCredit = transaction.transaction_type === 'topup' || transaction.transaction_type === 'bonus';
+                        const isPending = transaction.transaction_type === 'pending';
+                        const isFailed = transaction.transaction_type === 'failed';
+
+                        const Icon = isCredit ? ArrowUp : (isPending ? Clock : (isFailed ? FileText : ArrowDown));
+                        const iconColor = isCredit ? 'text-success' : (isPending ? 'text-yellow-600' : (isFailed ? 'text-destructive' : 'text-destructive'));
+                        const bgColor = isCredit ? 'bg-success/10' : (isPending ? 'bg-yellow-600/10' : (isFailed ? 'bg-destructive/10' : 'bg-destructive/10'));
+                        const amountColor = isCredit ? 'text-success' : (isPending ? 'text-yellow-600' : (isFailed ? 'text-muted-foreground' : 'text-destructive'));
+                        const amountPrefix = isCredit ? '+' : (isPending || isFailed ? '' : '-');
+
+                        return (
+                          <motion.div
+                            key={transaction.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.3, delay: index * 0.02 }}
+                            className="group"
+                          >
+                            <div className="flex items-center justify-between p-4 border border-primary/10 rounded-lg hover:bg-muted/50 hover:border-primary/30 transition-smooth card-soft">
+                              <div className="flex items-center gap-3 flex-1">
+                                <div className={`p-2 rounded-full ${bgColor} ${iconColor} transition-smooth group-hover:scale-110`}>
+                                  <Icon className="h-4 w-4" />
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium group-hover:text-primary transition-smooth">{transaction.description}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {format(parseISO(transaction.created_at), 'MMM dd, yyyy HH:mm')}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="text-right flex items-center gap-3">
+                                <div>
+                                  <p className={`text-sm font-bold ${amountColor}`}>
+                                    {amountPrefix}RM{Math.abs(transaction.amount).toFixed(2)}
+                                  </p>
+                                  {transaction.source === 'transaction' && transaction.balance_after > 0 && (
+                                    <p className="text-xs text-muted-foreground">
+                                      Balance: RM{transaction.balance_after.toFixed(2)}
+                                    </p>
+                                  )}
+                                  {transaction.status && (
+                                    <Badge
+                                      variant={transaction.status === 'paid' ? 'default' : transaction.status === 'pending' ? 'secondary' : 'destructive'}
+                                      className="text-xs mt-1"
+                                    >
+                                      {transaction.status}
+                                    </Badge>
+                                  )}
+                                </div>
+                                {/* View Invoice Button for paid payments */}
+                                {transaction.source === 'payment' && transaction.status === 'paid' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => window.open(`/invoices?payment_id=${transaction.id}`, '_blank')}
+                                    className="h-8 w-8 p-0"
+                                  >
+                                    <FileText className="h-4 w-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  ));
+                })()}
               </div>
             )}
           </CardContent>
