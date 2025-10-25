@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Mail, Clock, CreditCard, Edit, Phone, Eye, EyeOff } from 'lucide-react';
+import { Users, Mail, Clock, CreditCard, Edit, Phone, Eye, EyeOff, Wallet, Key, Edit2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -25,6 +25,7 @@ import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface PhoneConfig {
   id: string;
@@ -52,7 +53,9 @@ export default function AdminUsers() {
   const queryClient = useQueryClient();
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [sipDialogOpen, setSipDialogOpen] = useState(false);
+  const [manageDialogOpen, setManageDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showSipPassword, setShowSipPassword] = useState(false);
 
   const [sipConfig, setSipConfig] = useState({
     sip_proxy_primary: '',
@@ -60,6 +63,12 @@ export default function AdminUsers() {
     sip_username: '',
     sip_password: '',
     sip_caller_id: '',
+  });
+
+  const [userManagement, setUserManagement] = useState({
+    new_password: '',
+    trial_balance_minutes: 0,
+    pro_balance_minutes: 0,
   });
 
   const { data: allUsers, isLoading } = useQuery({
@@ -87,7 +96,6 @@ export default function AdminUsers() {
 
   const saveSipMutation = useMutation({
     mutationFn: async ({ userId, config }: { userId: string; config: any }) => {
-      // Check if config exists
       const { data: existingConfig } = await supabase
         .from('phone_config')
         .select('id')
@@ -95,14 +103,12 @@ export default function AdminUsers() {
         .maybeSingle();
 
       if (existingConfig) {
-        // Update existing
         const { error } = await supabase
           .from('phone_config')
           .update(config)
           .eq('user_id', userId);
         if (error) throw error;
       } else {
-        // Insert new
         const { error } = await supabase
           .from('phone_config')
           .insert({ user_id: userId, ...config });
@@ -134,10 +140,40 @@ export default function AdminUsers() {
     },
   });
 
+  const updateUserMutation = useMutation({
+    mutationFn: async ({ userId, updates }: { userId: string; updates: any }) => {
+      const { error } = await supabase
+        .from('users')
+        .update(updates)
+        .eq('id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Success',
+        description: 'User updated successfully',
+      });
+      queryClient.invalidateQueries({ queryKey: ['admin-all-users'] });
+      setManageDialogOpen(false);
+      setSelectedUser(null);
+      setUserManagement({
+        new_password: '',
+        trial_balance_minutes: 0,
+        pro_balance_minutes: 0,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to update user',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleEditSip = (user: User) => {
     setSelectedUser(user);
 
-    // Load existing SIP config if available
     const existingConfig = phoneConfigs?.find(pc => pc.user_id === user.id);
     if (existingConfig) {
       setSipConfig({
@@ -148,7 +184,6 @@ export default function AdminUsers() {
         sip_caller_id: existingConfig.sip_caller_id || '',
       });
     } else {
-      // Set defaults
       setSipConfig({
         sip_proxy_primary: 'sip1.alienvoip.com',
         sip_proxy_secondary: 'sip3.alienvoip.com',
@@ -161,10 +196,19 @@ export default function AdminUsers() {
     setSipDialogOpen(true);
   };
 
+  const handleManageUser = (user: User) => {
+    setSelectedUser(user);
+    setUserManagement({
+      new_password: '',
+      trial_balance_minutes: user.trial_balance_minutes || 0,
+      pro_balance_minutes: user.pro_balance_minutes || 0,
+    });
+    setManageDialogOpen(true);
+  };
+
   const handleSaveSip = () => {
     if (!selectedUser) return;
 
-    // Validate required fields
     if (!sipConfig.sip_proxy_primary || !sipConfig.sip_username || !sipConfig.sip_password) {
       toast({
         title: 'Validation Error',
@@ -177,6 +221,33 @@ export default function AdminUsers() {
     saveSipMutation.mutate({
       userId: selectedUser.id,
       config: sipConfig,
+    });
+  };
+
+  const handleSaveUserManagement = () => {
+    if (!selectedUser) return;
+
+    const updates: any = {
+      trial_balance_minutes: Number(userManagement.trial_balance_minutes),
+      pro_balance_minutes: Number(userManagement.pro_balance_minutes),
+    };
+
+    // Only include password if provided
+    if (userManagement.new_password && userManagement.new_password.length > 0) {
+      if (userManagement.new_password.length < 6) {
+        toast({
+          title: 'Validation Error',
+          description: 'Password must be at least 6 characters',
+          variant: 'destructive',
+        });
+        return;
+      }
+      updates.password = userManagement.new_password;
+    }
+
+    updateUserMutation.mutate({
+      userId: selectedUser.id,
+      updates,
     });
   };
 
@@ -207,7 +278,7 @@ export default function AdminUsers() {
           </h1>
         </div>
         <p className="text-muted-foreground text-lg">
-          Manage users and configure their SIP trunk settings
+          Manage users, configure SIP settings, and adjust balances
         </p>
       </motion.div>
 
@@ -273,14 +344,24 @@ export default function AdminUsers() {
                           {getUserSipStatus(user.id)}
                         </TableCell>
                         <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleEditSip(user)}
-                          >
-                            <Phone className="h-4 w-4 mr-2" />
-                            Configure SIP
-                          </Button>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditSip(user)}
+                            >
+                              <Phone className="h-4 w-4 mr-1" />
+                              SIP
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleManageUser(user)}
+                            >
+                              <Edit2 className="h-4 w-4 mr-1" />
+                              Manage
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -339,7 +420,7 @@ export default function AdminUsers() {
                 <div className="relative">
                   <Input
                     id="sip_password"
-                    type={showPassword ? "text" : "password"}
+                    type={showSipPassword ? "text" : "password"}
                     value={sipConfig.sip_password}
                     onChange={(e) => setSipConfig({ ...sipConfig, sip_password: e.target.value })}
                     placeholder="Enter SIP password"
@@ -350,9 +431,9 @@ export default function AdminUsers() {
                     variant="ghost"
                     size="sm"
                     className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowSipPassword(!showSipPassword)}
                   >
-                    {showPassword ? (
+                    {showSipPassword ? (
                       <EyeOff className="h-4 w-4 text-muted-foreground" />
                     ) : (
                       <Eye className="h-4 w-4 text-muted-foreground" />
@@ -388,6 +469,109 @@ export default function AdminUsers() {
               disabled={saveSipMutation.isPending}
             >
               {saveSipMutation.isPending ? 'Saving...' : 'Save Configuration'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* User Management Dialog */}
+      <Dialog open={manageDialogOpen} onOpenChange={setManageDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Manage User: {selectedUser?.username}</DialogTitle>
+            <DialogDescription>
+              Update password and balance minutes for this user
+            </DialogDescription>
+          </DialogHeader>
+
+          <Tabs defaultValue="balance" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="balance">Balance & Minutes</TabsTrigger>
+              <TabsTrigger value="password">Reset Password</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="balance" className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="trial_balance">Trial Balance Minutes</Label>
+                <Input
+                  id="trial_balance"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={userManagement.trial_balance_minutes}
+                  onChange={(e) => setUserManagement({ ...userManagement, trial_balance_minutes: parseFloat(e.target.value) || 0 })}
+                  placeholder="10.0"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Current: {selectedUser?.trial_balance_minutes?.toFixed(1)} minutes
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pro_balance">Pro Balance Minutes</Label>
+                <Input
+                  id="pro_balance"
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={userManagement.pro_balance_minutes}
+                  onChange={(e) => setUserManagement({ ...userManagement, pro_balance_minutes: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.0"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Current: {selectedUser?.pro_balance_minutes?.toFixed(1)} minutes
+                </p>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="password" className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="new_password">New Password</Label>
+                <div className="relative">
+                  <Input
+                    id="new_password"
+                    type={showPassword ? "text" : "password"}
+                    value={userManagement.new_password}
+                    onChange={(e) => setUserManagement({ ...userManagement, new_password: e.target.value })}
+                    placeholder="Enter new password (min 6 characters)"
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <Eye className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Leave blank to keep current password unchanged
+                </p>
+              </div>
+            </TabsContent>
+          </Tabs>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setManageDialogOpen(false);
+                setSelectedUser(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveUserManagement}
+              disabled={updateUserMutation.isPending}
+            >
+              {updateUserMutation.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
         </DialogContent>
