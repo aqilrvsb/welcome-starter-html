@@ -79,6 +79,13 @@ ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies for feature_requests
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view own feature requests" ON public.feature_requests;
+DROP POLICY IF EXISTS "Users can create feature requests" ON public.feature_requests;
+DROP POLICY IF EXISTS "Users can update own pending requests" ON public.feature_requests;
+DROP POLICY IF EXISTS "Admins can view all feature requests" ON public.feature_requests;
+DROP POLICY IF EXISTS "Admins can update all feature requests" ON public.feature_requests;
+
 -- Users can view their own feature requests
 CREATE POLICY "Users can view own feature requests"
   ON public.feature_requests
@@ -123,6 +130,13 @@ CREATE POLICY "Admins can update all feature requests"
 
 -- RLS Policies for pro_applications
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view own pro application" ON public.pro_applications;
+DROP POLICY IF EXISTS "Users can create pro application" ON public.pro_applications;
+DROP POLICY IF EXISTS "Users can update own pending application" ON public.pro_applications;
+DROP POLICY IF EXISTS "Admins can view all pro applications" ON public.pro_applications;
+DROP POLICY IF EXISTS "Admins can update all pro applications" ON public.pro_applications;
+
 -- Users can view their own pro application
 CREATE POLICY "Users can view own pro application"
   ON public.pro_applications
@@ -166,6 +180,12 @@ CREATE POLICY "Admins can update all pro applications"
   );
 
 -- RLS Policies for system_settings
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Anyone can read public settings" ON public.system_settings;
+DROP POLICY IF EXISTS "Admins can read all settings" ON public.system_settings;
+DROP POLICY IF EXISTS "Admins can insert settings" ON public.system_settings;
+DROP POLICY IF EXISTS "Admins can update settings" ON public.system_settings;
 
 -- Everyone can read public settings
 CREATE POLICY "Anyone can read public settings"

@@ -11,6 +11,13 @@ ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies for pro-applications bucket
 
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can upload own pro application documents" ON storage.objects;
+DROP POLICY IF EXISTS "Users can view own pro application documents" ON storage.objects;
+DROP POLICY IF EXISTS "Users can update own pro application documents" ON storage.objects;
+DROP POLICY IF EXISTS "Users can delete own pro application documents" ON storage.objects;
+DROP POLICY IF EXISTS "Admins can view all pro application documents" ON storage.objects;
+
 -- Allow authenticated users to upload their own documents
 CREATE POLICY "Users can upload own pro application documents"
 ON storage.objects
