@@ -1,4 +1,5 @@
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
+import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -89,6 +90,7 @@ const cardHoverVariants = {
 
 export default function Dashboard() {
   const { user } = useCustomAuth();
+  const { pricingPerMinute } = useDynamicPricing();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
@@ -186,7 +188,7 @@ export default function Dashboard() {
   const trialUsed = userData?.trial_minutes_used || 0;
   const trialRemaining = Math.max(0, trialTotal - trialUsed);
   const creditsBalance = userData?.credits_balance || 0;
-  const balanceMinutes = creditsBalance / 0.15;
+  const balanceMinutes = creditsBalance / pricingPerMinute;
   const totalMinutesUsed = userData?.total_minutes_used || 0;
   const proMinutesUsed = Math.max(0, totalMinutesUsed - trialUsed);
   const remainingMinutes = accountType === 'trial' ? trialRemaining : balanceMinutes;

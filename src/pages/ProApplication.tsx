@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
 import { motion } from 'framer-motion';
@@ -72,6 +73,7 @@ const statusConfig = {
 export default function ProApplication() {
   const { user } = useCustomAuth();
   const { toast } = useToast();
+  const { pricingPerMinute } = useDynamicPricing();
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -261,7 +263,7 @@ export default function ProApplication() {
           Pro Account Application
         </h1>
         <p className="text-muted-foreground text-lg">
-          Apply for a Pro account to access unlimited calling at RM0.15/minute
+          Apply for a Pro account to access unlimited calling at RM{pricingPerMinute.toFixed(2)}/minute
         </p>
       </motion.div>
 

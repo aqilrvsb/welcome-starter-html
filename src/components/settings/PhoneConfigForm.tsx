@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -54,6 +55,7 @@ interface PhoneConfigData {
 export function PhoneConfigForm() {
   const { user } = useCustomAuth();
   const { toast } = useToast();
+  const { pricingPerMinute } = useDynamicPricing();
   const queryClient = useQueryClient();
   const [accountType, setAccountType] = useState<'trial' | 'pro'>('trial');
   const [claimingTrial, setClaimingTrial] = useState(false);
@@ -270,7 +272,7 @@ export function PhoneConfigForm() {
           <AlertDescription className="text-sm text-blue-800">
             <strong>Free Trial:</strong> Get 10 minutes free (one-time only) to test the system.
             <br />
-            <strong>Pro Account:</strong> Only RM0.15 per minute - pay as you go!
+            <strong>Pro Account:</strong> Only RM{pricingPerMinute.toFixed(2)} per minute - pay as you go!
           </AlertDescription>
         </Alert>
 
@@ -289,7 +291,7 @@ export function PhoneConfigForm() {
               <RadioGroupItem value="pro" id="pro" />
               <Label htmlFor="pro" className="cursor-pointer flex-1">
                 <div className="font-medium">Pro Account</div>
-                <div className="text-sm text-muted-foreground">RM0.15 per minute - unlimited calling</div>
+                <div className="text-sm text-muted-foreground">RM{pricingPerMinute.toFixed(2)} per minute - unlimited calling</div>
               </Label>
             </div>
           </RadioGroup>

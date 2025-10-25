@@ -5,6 +5,7 @@ import { z } from "zod";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useCustomAuth } from "@/contexts/CustomAuthContext";
+import { useDynamicPricing } from "@/hooks/useDynamicPricing";
 import { toast } from "sonner";
 import { canMakeCalls } from "@/lib/billing";
 import Swal from 'sweetalert2';
@@ -39,6 +40,7 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
   const [invalidNumbers, setInvalidNumbers] = useState<string[]>([]);
   const [contactsMap, setContactsMap] = useState<Map<string, string>>(new Map());
   const { user } = useCustomAuth();
+  const { pricingPerMinute } = useDynamicPricing();
 
   const form = useForm<BatchCallFormData>({
     resolver: zodResolver(batchCallSchema),
@@ -196,8 +198,8 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
         }
       } else if (accountType === 'pro') {
         const creditsBalance = userData?.credits_balance || 0;
-        const balanceMinutes = creditsBalance / 0.15; // Convert RM to minutes (RM0.15 per minute)
-        const estimatedCost = estimatedMinutes * 0.15; // RM0.15 per minute
+        const balanceMinutes = creditsBalance / pricingPerMinute; // Convert RM to minutes
+        const estimatedCost = estimatedMinutes * pricingPerMinute;
 
         if (creditsBalance <= 0) {
           throw new Error('Credits balance insufficient. Please top up credits to continue.');
@@ -286,7 +288,7 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
               <p><strong>${error.message}</strong></p>
               <br/>
               ${isTrial ?
-                '<p>Pilihan anda:</p><ul style="padding-left: 20px;"><li>Tukar ke Pro Account (RM0.15/minit)</li><li>Top up kredit untuk teruskan</li></ul>' :
+                `<p>Pilihan anda:</p><ul style="padding-left: 20px;"><li>Tukar ke Pro Account (RM${pricingPerMinute.toFixed(2)}/minit)</li><li>Top up kredit untuk teruskan</li></ul>` :
                 '<p>Sila top up kredit anda untuk teruskan.</p>'
               }
             </div>
