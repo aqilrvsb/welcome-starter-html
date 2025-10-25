@@ -1,4 +1,4 @@
-import { Shield, Users, LayoutDashboard, Phone, MessageSquare, Target, CreditCard, LogOut, DollarSign, BarChart3, FileText } from "lucide-react"
+import { Shield, Users, LayoutDashboard, Phone, MessageSquare, Target, CreditCard, LogOut, DollarSign, BarChart3, FileText, UserCheck, Lightbulb, Settings } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useCustomAuth } from "@/contexts/CustomAuthContext"
 import {
@@ -21,6 +21,21 @@ const adminMenuItems = [
     icon: LayoutDashboard,
   },
   {
+    title: "Waiting List",
+    url: "/admin/waiting-list",
+    icon: UserCheck,
+  },
+  {
+    title: "Users",
+    url: "/admin/users",
+    icon: Users,
+  },
+  {
+    title: "Feature Requests",
+    url: "/admin/feature-requests",
+    icon: Lightbulb,
+  },
+  {
     title: "Revenue",
     url: "/admin/revenue",
     icon: DollarSign,
@@ -29,11 +44,6 @@ const adminMenuItems = [
     title: "Analytics",
     url: "/admin/analytics",
     icon: BarChart3,
-  },
-  {
-    title: "Users",
-    url: "/admin/users",
-    icon: Users,
   },
   {
     title: "Call Logs",
@@ -54,6 +64,11 @@ const adminMenuItems = [
     title: "Reports",
     url: "/admin/reports",
     icon: FileText,
+  },
+  {
+    title: "System Settings",
+    url: "/admin/settings",
+    icon: Settings,
   },
 ]
 

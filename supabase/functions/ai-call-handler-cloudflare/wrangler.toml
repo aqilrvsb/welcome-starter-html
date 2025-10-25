@@ -1,0 +1,24 @@
+# Cloudflare Workers Configuration
+# EXACT port from Deno Deploy - same functionality, just platform change
+
+name = "sifucall"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+account_id = "82fbbe366af44f32928f021e621474f8"
+
+# Simple configuration - no KV, no R2, no Durable Objects (like Deno Deploy)
+
+# All environment variables will be set via wrangler secrets:
+# wrangler secret put AZURE_SPEECH_KEY
+# wrangler secret put AZURE_SPEECH_REGION
+# wrangler secret put OPENROUTER_API_KEY
+# wrangler secret put ELEVENLABS_API_KEY
+# wrangler secret put SUPABASE_URL
+# wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+# wrangler secret put FREESWITCH_HOST
+# wrangler secret put FREESWITCH_ESL_PORT
+# wrangler secret put FREESWITCH_ESL_PASSWORD
+# wrangler secret put TRIAL_SIP_USERNAME
+# wrangler secret put TRIAL_SIP_PASSWORD
+# wrangler secret put TRIAL_SIP_PROXY
+# wrangler secret put TRIAL_CALLER_ID

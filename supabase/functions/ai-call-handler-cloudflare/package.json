@@ -1,0 +1,30 @@
+{
+  "name": "ai-call-handler-enterprise-cloudflare",
+  "version": "2.0.0",
+  "description": "Enterprise-grade AI Call Handler for Cloudflare Workers - Supports 200K+ concurrent calls",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:production": "wrangler deploy --env production",
+    "tail": "wrangler tail",
+    "kv:create": "wrangler kv:namespace create RATE_LIMIT_KV && wrangler kv:namespace create CACHE_KV",
+    "secret:set": "wrangler secret put OPENAI_API_KEY && wrangler secret put SUPABASE_SERVICE_ROLE_KEY",
+    "test": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openai": "^4.67.3",
+    "@supabase/supabase-js": "^2.45.4"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "@cloudflare/vitest-pool-workers": "^0.5.15",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.5",
+    "wrangler": "^3.95.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -29,6 +29,8 @@ import CreditsTopup from "./pages/CreditsTopup";
 import NotFound from "./pages/NotFound";
 import ThankYou from "./pages/ThankYou";
 import TwilioTutorial from "./pages/TwilioTutorial";
+import Roadmap from "./pages/Roadmap";
+import ProApplication from "./pages/ProApplication";
 
 // Admin pages
 import AdminLogin from "./pages/admin/AdminLogin";
@@ -40,6 +42,9 @@ import AdminCallLogs from "./pages/admin/AdminCallLogs";
 import AdminContacts from "./pages/admin/AdminContacts";
 import AdminCampaigns from "./pages/admin/AdminCampaigns";
 import AdminReports from "./pages/admin/AdminReports";
+import AdminWaitingList from "./pages/admin/AdminWaitingList";
+import AdminFeatureRequests from "./pages/admin/AdminFeatureRequests";
+import AdminSettings from "./pages/admin/AdminSettings";
 
 // Create QueryClient outside component to avoid recreation
 const queryClient = new QueryClient({
@@ -209,6 +214,22 @@ function App() {
                           </CustomProtectedRoute>
                         }
                       />
+                      <Route
+                        path="/roadmap"
+                        element={
+                          <CustomProtectedRoute>
+                            <Roadmap />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/pro-application"
+                        element={
+                          <CustomProtectedRoute>
+                            <ProApplication />
+                          </CustomProtectedRoute>
+                        }
+                      />
 
                       {/* Admin Routes */}
                       <Route path="/admin/login" element={<AdminLogin />} />
@@ -273,6 +294,30 @@ function App() {
                         element={
                           <CustomProtectedRoute>
                             <AdminReports />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/waiting-list"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminWaitingList />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/feature-requests"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminFeatureRequests />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/settings"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminSettings />
                           </CustomProtectedRoute>
                         }
                       />

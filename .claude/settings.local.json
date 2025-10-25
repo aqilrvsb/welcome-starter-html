@@ -32,7 +32,9 @@
       "Bash(npx supabase link:*)",
       "Bash(npm run build:*)",
       "Bash(docker --version:*)",
-      "Bash(git restore:*)"
+      "Bash(git restore:*)",
+      "Read(//c/Users/aqilz/Documents/**)",
+      "Bash(wrangler --version:*)"
     ],
     "deny": [],
     "ask": []

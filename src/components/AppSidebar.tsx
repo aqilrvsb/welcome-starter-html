@@ -10,7 +10,9 @@ import {
   Clock,
   XCircle,
   Users,
-  Wallet
+  Wallet,
+  Lightbulb,
+  UserCheck
 } from 'lucide-react';
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
 import { useState, useEffect } from 'react';
@@ -34,11 +36,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 const navigationItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
+  { title: 'Pro Application', url: '/pro-application', icon: UserCheck },
   { title: 'Credits Top-Up', url: '/credits-topup', icon: Wallet },
   { title: 'Contacts', url: '/contacts', icon: Users },
   { title: 'Campaigns', url: '/campaigns', icon: BarChart3 },
   { title: 'Call Logs', url: '/call-logs', icon: Phone },
   { title: 'Prompts', url: '/prompts', icon: Bot },
+  { title: 'Roadmap', url: '/roadmap', icon: Lightbulb },
   { title: 'Settings', url: '/settings', icon: Settings },
 ];
 
