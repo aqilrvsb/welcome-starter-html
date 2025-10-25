@@ -989,6 +989,17 @@ async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
     }
 
     console.log(`🎤 Buffer has audio content (RMS: ${avgRms.toFixed(0)}), transcribing...`);
+
+    // AUDIO NORMALIZATION: Fix volume inconsistency (adds ~1ms, no noticeable delay)
+    const targetRms = 1000; // Target volume level for consistent audio
+    if (avgRms > 0 && avgRms !== targetRms) {
+      const gainFactor = targetRms / avgRms;
+      for (let i = 0; i < samples.length; i++) {
+        // Apply gain and clamp to prevent distortion
+        samples[i] = Math.max(-32768, Math.min(32767, Math.round(samples[i] * gainFactor)));
+      }
+      console.log(`🔊 Normalized audio: ${avgRms.toFixed(0)} → ${targetRms} (gain: ${gainFactor.toFixed(2)}x)`);
+    }
     await transcribeAudio(session, combined);
     session.isProcessingAudio = false;
   }
@@ -1096,7 +1107,7 @@ async function getAIResponse(session: any, userMessage: string) {
       ];
     }
 
-    // Direct call to Claude - no filler words for maximum speed
+    // Direct call to GPT-5 Nano - ultra-low latency for maximum speed
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -1104,7 +1115,7 @@ async function getAIResponse(session: any, userMessage: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-3.5-haiku',
+        model: 'openai/gpt-5-nano',
         messages: messages,
         temperature: 0.7,
         max_tokens: 150,
@@ -1274,6 +1285,22 @@ async function speakToCall(session: any, text: string) {
               const pcm8k = new Int16Array(Math.floor(pcm16k.length / 2));
               for (let i = 0; i < pcm8k.length; i++) {
                 pcm8k[i] = pcm16k[i * 2];
+              }
+
+              // NORMALIZE AI VOICE OUTPUT: Fix volume inconsistency (loud/quiet issue)
+              let sumSquares = 0;
+              for (let i = 0; i < pcm8k.length; i++) {
+                sumSquares += pcm8k[i] * pcm8k[i];
+              }
+              const rms = Math.sqrt(sumSquares / pcm8k.length);
+
+              // Target RMS for consistent volume (adjust if needed: higher = louder)
+              const targetRms = 2500; // Consistent AI voice level
+              if (rms > 100) { // Only normalize if there's actual audio
+                const gainFactor = targetRms / rms;
+                for (let i = 0; i < pcm8k.length; i++) {
+                  pcm8k[i] = Math.max(-32768, Math.min(32767, Math.round(pcm8k[i] * gainFactor)));
+                }
               }
 
               audioChunks.push(new Uint8Array(pcm8k.buffer));
