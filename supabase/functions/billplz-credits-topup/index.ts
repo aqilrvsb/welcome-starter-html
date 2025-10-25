@@ -91,14 +91,19 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error('Failed to create payment record');
     }
 
-    // Get app origin for redirect
-    let appOrigin = Deno.env.get('APP_ORIGIN');
+    // Get app origin dynamically from request or environment
+    const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/');
+    let appOrigin = origin || Deno.env.get('APP_ORIGIN');
+
+    // Fallback to constructed URL only if no origin found
     if (!appOrigin) {
       const projectId = Deno.env.get('SUPABASE_URL')?.includes('ahexnoaazbveiyhplfrc')
         ? 'ahexnoaazbveiyhplfrc'
         : '';
       appOrigin = `https://${projectId}.lovable.app`;
     }
+
+    console.log(`🌐 Using app origin: ${appOrigin}`);
 
     // Create Billplz bill
     const billPlzData = new URLSearchParams({

@@ -126,20 +126,20 @@ async function createBill(req: Request, body: any): Promise<Response> {
     throw new Error('Failed to create payment record');
   }
 
-  // Get the app origin from environment or construct from known domains
-  // Priority: ENV variable > Production domain > Staging domain
-  let appOrigin = Deno.env.get('APP_ORIGIN');
-  
+  // Get app origin dynamically from request or environment
+  const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/');
+  let appOrigin = origin || Deno.env.get('APP_ORIGIN');
+
+  // Fallback to constructed URL only if no origin found
   if (!appOrigin) {
-    // Default to common Lovable domains
     const projectId = Deno.env.get('SUPABASE_URL')?.includes('ahexnoaazbveiyhplfrc')
       ? 'ahexnoaazbveiyhplfrc'
       : '';
     appOrigin = `https://${projectId}.lovable.app`;
   }
-  
-  console.log('Using app origin for redirect:', appOrigin);
-  
+
+  console.log(`🌐 Using app origin for redirect: ${appOrigin}`);
+
   // Prepare BillPlz API request - redirect to dashboard for both success and cancel
   const billPlzData = new URLSearchParams({
     collection_id,
