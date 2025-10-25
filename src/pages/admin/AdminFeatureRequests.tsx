@@ -26,10 +26,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, Eye, Lightbulb } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Loader2, Eye, Lightbulb, Plus, Trash2, Edit as EditIcon } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
+import { useCustomAuth } from '@/contexts/CustomAuthContext';
 
 interface FeatureRequest {
   id: string;
@@ -69,16 +71,24 @@ const categoryColors: Record<string, string> = {
 
 export default function AdminFeatureRequests() {
   const { toast } = useToast();
+  const { user } = useCustomAuth();
   const [loading, setLoading] = useState(true);
   const [requests, setRequests] = useState<FeatureRequest[]>([]);
   const [selectedRequest, setSelectedRequest] = useState<FeatureRequest | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [processing, setProcessing] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
 
-  // Form state
+  // Form state for view/edit
   const [status, setStatus] = useState('submitted');
   const [priority, setPriority] = useState('medium');
   const [adminNotes, setAdminNotes] = useState('');
+
+  // Form state for create/edit
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('feature');
 
   useEffect(() => {
     loadFeatureRequests();
@@ -159,6 +169,128 @@ export default function AdminFeatureRequests() {
     }
   };
 
+  const handleOpenCreateDialog = () => {
+    setIsEditMode(false);
+    setTitle('');
+    setDescription('');
+    setCategory('feature');
+    setStatus('planned'); // Admin-created items start as planned
+    setPriority('medium');
+    setAdminNotes('');
+    setCreateDialogOpen(true);
+  };
+
+  const handleOpenEditDialog = (request: FeatureRequest) => {
+    setIsEditMode(true);
+    setSelectedRequest(request);
+    setTitle(request.title);
+    setDescription(request.description);
+    setCategory(request.category);
+    setStatus(request.status);
+    setPriority(request.priority);
+    setAdminNotes(request.admin_notes || '');
+    setCreateDialogOpen(true);
+  };
+
+  const handleCreateOrEdit = async () => {
+    if (!user) return;
+
+    if (!title.trim() || !description.trim()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Title and description are required',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setProcessing(true);
+
+      if (isEditMode && selectedRequest) {
+        // Update existing
+        const { error } = await supabase
+          .from('feature_requests')
+          .update({
+            title: title.trim(),
+            description: description.trim(),
+            category,
+            status,
+            priority,
+            admin_notes: adminNotes.trim() || null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', selectedRequest.id);
+
+        if (error) throw error;
+
+        toast({
+          title: 'Success',
+          description: 'Feature request updated successfully',
+        });
+      } else {
+        // Create new (admin-created)
+        const { error } = await supabase
+          .from('feature_requests')
+          .insert({
+            user_id: user.id, // Admin is the creator
+            title: title.trim(),
+            description: description.trim(),
+            category,
+            status, // Admin items start as 'planned' or whatever admin chooses
+            priority,
+            admin_notes: adminNotes.trim() || null,
+          });
+
+        if (error) throw error;
+
+        toast({
+          title: 'Success',
+          description: 'Roadmap item created successfully',
+        });
+      }
+
+      setCreateDialogOpen(false);
+      await loadFeatureRequests();
+    } catch (error: any) {
+      console.error('Error saving feature request:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to save feature request',
+        variant: 'destructive',
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleDelete = async (requestId: string) => {
+    if (!confirm('Are you sure you want to delete this feature request?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('feature_requests')
+        .delete()
+        .eq('id', requestId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Feature request deleted successfully',
+      });
+
+      await loadFeatureRequests();
+    } catch (error: any) {
+      console.error('Error deleting feature request:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to delete feature request',
+        variant: 'destructive',
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -178,11 +310,19 @@ export default function AdminFeatureRequests() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Lightbulb className="h-5 w-5" />
-            All Feature Requests ({requests.length})
-          </CardTitle>
-          <CardDescription>Review and update the status of client feature requests</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Lightbulb className="h-5 w-5" />
+                All Feature Requests ({requests.length})
+              </CardTitle>
+              <CardDescription>Review and update the status of client feature requests</CardDescription>
+            </div>
+            <Button onClick={handleOpenCreateDialog} className="gap-2">
+              <Plus className="h-4 w-4" />
+              Add Roadmap Item
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           {requests.length === 0 ? (
@@ -239,14 +379,31 @@ export default function AdminFeatureRequests() {
                       {format(parseISO(request.created_at), 'MMM dd, yyyy')}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewRequest(request)}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        View
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleViewRequest(request)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          View
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleOpenEditDialog(request)}
+                        >
+                          <EditIcon className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(request.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -366,6 +523,123 @@ export default function AdminFeatureRequests() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Create/Edit Dialog */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{isEditMode ? 'Edit' : 'Create'} Roadmap Item</DialogTitle>
+            <DialogDescription>
+              {isEditMode ? 'Update the roadmap item details' : 'Add a new item to the public roadmap'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="title">Title *</Label>
+              <Input
+                id="title"
+                placeholder="Feature or improvement title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger id="category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general">General</SelectItem>
+                  <SelectItem value="ui">UI/UX</SelectItem>
+                  <SelectItem value="feature">New Feature</SelectItem>
+                  <SelectItem value="integration">Integration</SelectItem>
+                  <SelectItem value="performance">Performance</SelectItem>
+                  <SelectItem value="bug">Bug Fix</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={status} onValueChange={setStatus}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="under_review">Under Review</SelectItem>
+                    <SelectItem value="planned">Planned</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Priority</Label>
+                <Select value={priority} onValueChange={setPriority}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="description">Description *</Label>
+              <Textarea
+                id="description"
+                placeholder="Detailed description of the feature or improvement..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={6}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="admin-notes">Public Notes (visible to clients)</Label>
+              <Textarea
+                id="admin-notes"
+                placeholder="Add notes that will be visible to all users..."
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                rows={3}
+              />
+            </div>
+
+            <div className="flex gap-2 justify-end pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setCreateDialogOpen(false)}
+                disabled={processing}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleCreateOrEdit} disabled={processing}>
+                {processing ? (
+                  <>
+                    <Loader2 className="w-4 w-4 mr-2 animate-spin" />
+                    {isEditMode ? 'Updating...' : 'Creating...'}
+                  </>
+                ) : (
+                  <>{isEditMode ? 'Update Item' : 'Create Item'}</>
+                )}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

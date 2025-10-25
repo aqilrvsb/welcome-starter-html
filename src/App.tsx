@@ -45,6 +45,7 @@ import AdminReports from "./pages/admin/AdminReports";
 import AdminWaitingList from "./pages/admin/AdminWaitingList";
 import AdminFeatureRequests from "./pages/admin/AdminFeatureRequests";
 import AdminSettings from "./pages/admin/AdminSettings";
+import AdminTransactions from "./pages/admin/AdminTransactions";
 
 // Create QueryClient outside component to avoid recreation
 const queryClient = new QueryClient({
@@ -318,6 +319,14 @@ function App() {
                         element={
                           <CustomProtectedRoute>
                             <AdminSettings />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/transactions"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminTransactions />
                           </CustomProtectedRoute>
                         }
                       />

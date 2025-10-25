@@ -34,7 +34,8 @@
       "Bash(docker --version:*)",
       "Bash(git restore:*)",
       "Read(//c/Users/aqilz/Documents/**)",
-      "Bash(wrangler --version:*)"
+      "Bash(wrangler --version:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": []

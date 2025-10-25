@@ -9,6 +9,7 @@ import { Loader2, CreditCard, Wallet, TrendingUp, DollarSign, Info, Clock, Gift,
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import Swal from 'sweetalert2';
 import { formatDistanceToNow, format, parseISO, startOfMonth, isSameMonth } from 'date-fns';
 import { motion } from 'framer-motion';
@@ -52,6 +53,7 @@ const itemVariants = {
 export default function CreditsTopup() {
   const { user } = useCustomAuth();
   const { toast } = useToast();
+  const { pricingPerMinute } = useDynamicPricing();
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [creditsBalance, setCreditsBalance] = useState(0);
@@ -261,7 +263,7 @@ export default function CreditsTopup() {
     );
   }
 
-  const balanceMinutes = creditsBalance / 0.15; // RM0.15 per minute
+  const balanceMinutes = creditsBalance / pricingPerMinute;
   const trialMinutesRemaining = Math.max(0, trialMinutesTotal - trialMinutesUsed);
 
   return (
@@ -365,7 +367,7 @@ export default function CreditsTopup() {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-primary">RM 0.15</div>
+                <div className="text-3xl font-bold text-primary">RM {pricingPerMinute.toFixed(2)}</div>
                 <p className="text-xs text-muted-foreground mt-1">per minute</p>
               </CardContent>
             </Card>
@@ -385,7 +387,7 @@ export default function CreditsTopup() {
           </div>
           <AlertDescription>
             <div className="space-y-1">
-              <p className="font-semibold text-primary">Pricing: RM 0.15 per minute</p>
+              <p className="font-semibold text-primary">Pricing: RM {pricingPerMinute.toFixed(2)} per minute</p>
               <p className="text-sm text-muted-foreground">
                 This includes AI voice processing, speech recognition, and text-to-speech.
                 Affordable and cost-effective!
@@ -405,14 +407,14 @@ export default function CreditsTopup() {
         <CardHeader>
           <CardTitle>Select Top-Up Amount</CardTitle>
           <CardDescription>
-            Choose an amount based on the minutes you need (Rate: RM0.15 per minute)
+            Choose an amount based on the minutes you need (Rate: RM{pricingPerMinute.toFixed(2)} per minute)
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Predefined Amounts with Larger Minute Display */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {predefinedAmounts.map((amount) => {
-              const minutes = (amount / 0.15).toFixed(0);
+              const minutes = (amount / pricingPerMinute).toFixed(0);
               return (
                 <Button
                   key={amount}
