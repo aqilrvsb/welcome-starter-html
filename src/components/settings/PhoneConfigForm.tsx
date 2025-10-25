@@ -432,7 +432,7 @@ export function PhoneConfigForm() {
                           <FormItem>
                             <FormLabel>SIP Proxy Primary *</FormLabel>
                             <FormControl>
-                              <Input {...field} placeholder="sip1.alienvoip.com" />
+                              <Input {...field} placeholder="Enter your SIP proxy domain" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -446,7 +446,7 @@ export function PhoneConfigForm() {
                           <FormItem>
                             <FormLabel>SIP Proxy Secondary</FormLabel>
                             <FormControl>
-                              <Input {...field} placeholder="sip3.alienvoip.com" />
+                              <Input {...field} placeholder="Enter secondary proxy (optional)" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -462,7 +462,7 @@ export function PhoneConfigForm() {
                           <FormItem>
                             <FormLabel>SIP Username *</FormLabel>
                             <FormControl>
-                              <Input {...field} placeholder="646006395" />
+                              <Input {...field} placeholder="Enter your SIP username" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -476,7 +476,7 @@ export function PhoneConfigForm() {
                           <FormItem>
                             <FormLabel>SIP Password *</FormLabel>
                             <FormControl>
-                              <Input {...field} type="password" placeholder="Xh7Yk5Ydcg" />
+                              <Input {...field} type="password" placeholder="Enter your SIP password" />
                             </FormControl>
                             <FormMessage />
                           </FormItem>

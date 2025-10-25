@@ -295,6 +295,9 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
           showCancelButton: true,
           cancelButtonText: 'Tutup',
           confirmButtonColor: '#10b981',
+          customClass: {
+            container: 'swal-high-z-index'
+          }
         }).then((result) => {
           if (result.isConfirmed) {
             // Redirect to appropriate page
