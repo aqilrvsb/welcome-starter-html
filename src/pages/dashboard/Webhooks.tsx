@@ -119,10 +119,32 @@ export default function Webhooks() {
     enabled: !!user,
   });
 
+  // Fetch campaigns for dropdown
+  const { data: campaigns } = useQuery({
+    queryKey: ["campaigns", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("campaigns")
+        .select("campaign_name")
+        .eq("user_id", user.id)
+        .order("campaign_name");
+
+      if (error) throw error;
+      return data.map((c) => c.campaign_name);
+    },
+    enabled: !!user,
+  });
+
   // Create webhook mutation
   const createWebhook = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("User not authenticated");
+
+      // Check if user already has a webhook (limit: 1 per user)
+      if (webhooks && webhooks.length >= 1) {
+        throw new Error("WEBHOOK_LIMIT_REACHED");
+      }
 
       const { data, error } = await supabase
         .from("webhooks")
@@ -146,7 +168,9 @@ export default function Webhooks() {
       resetForm();
     },
     onError: (error: any) => {
-      if (error.message?.includes("webhooks_user_id_webhook_name_unique") ||
+      if (error.message === "WEBHOOK_LIMIT_REACHED") {
+        toast.error("❌ Had webhook tercapai! Anda hanya boleh mempunyai 1 webhook sahaja.");
+      } else if (error.message?.includes("webhooks_user_id_webhook_name_unique") ||
           error.message?.includes("duplicate key")) {
         toast.error("❌ Nama webhook sudah wujud! Sila gunakan nama yang berbeza.");
       } else {
@@ -228,13 +252,14 @@ export default function Webhooks() {
             Integrasikan sistem anda dengan webhook untuk lead dan auto-call
           </p>
         </div>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button size="lg" className="gap-2">
-              <Plus className="h-5 w-5" />
-              Cipta Webhook
-            </Button>
-          </DialogTrigger>
+        {(!webhooks || webhooks.length === 0) && (
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="lg" className="gap-2">
+                <Plus className="h-5 w-5" />
+                Cipta Webhook
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Cipta Webhook Baru</DialogTitle>
@@ -287,12 +312,18 @@ export default function Webhooks() {
 
                   <div className="space-y-2">
                     <Label htmlFor="default-campaign">Default Campaign (pilihan)</Label>
-                    <Input
-                      id="default-campaign"
-                      placeholder="contoh: March Promotion"
-                      value={defaultCampaignName}
-                      onChange={(e) => setDefaultCampaignName(e.target.value)}
-                    />
+                    <Select value={defaultCampaignName} onValueChange={setDefaultCampaignName}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih campaign" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {campaigns?.map((campaignName) => (
+                          <SelectItem key={campaignName} value={campaignName}>
+                            {campaignName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </>
               )}
@@ -311,6 +342,7 @@ export default function Webhooks() {
             </div>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Webhooks Grid */}
