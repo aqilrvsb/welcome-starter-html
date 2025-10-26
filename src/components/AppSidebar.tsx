@@ -34,6 +34,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
+// Navigation menu items for user dashboard
 const navigationItems = [
   { title: 'Dashboard', url: '/dashboard', icon: Home },
   { title: 'Credits Top-Up', url: '/credits-topup', icon: Wallet },
