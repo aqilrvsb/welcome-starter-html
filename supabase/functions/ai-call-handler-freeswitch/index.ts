@@ -1095,7 +1095,7 @@ async function getAIResponse(session: any, userMessage: string) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-5-nano',
+        model: 'openai/gpt-4o-mini',
         messages: messages,
         temperature: 0.7,
         max_tokens: 150,
