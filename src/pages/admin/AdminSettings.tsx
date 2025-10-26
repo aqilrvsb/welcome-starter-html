@@ -83,8 +83,11 @@ export default function AdminSettings() {
     try {
       setSaving(true);
 
+      // Format pricing to ensure 2 decimal places
+      const formattedPricing = parseFloat(pricingPerMinute).toFixed(2);
+
       const updates = [
-        { key: 'pricing_per_minute', value: pricingPerMinute },
+        { key: 'pricing_per_minute', value: formattedPricing },
         { key: 'trial_minutes_default', value: trialMinutesDefault },
         { key: 'max_concurrent_calls', value: maxConcurrentCalls },
         { key: 'default_sip_proxy_primary', value: defaultSipProxyPrimary },
@@ -103,6 +106,9 @@ export default function AdminSettings() {
 
         if (error) throw error;
       }
+
+      // Update local state with formatted value
+      setPricingPerMinute(formattedPricing);
 
       toast({
         title: 'Success',
