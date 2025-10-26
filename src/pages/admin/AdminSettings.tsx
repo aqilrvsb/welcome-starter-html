@@ -107,13 +107,13 @@ export default function AdminSettings() {
         if (error) throw error;
       }
 
-      // Update local state with formatted value
-      setPricingPerMinute(formattedPricing);
-
       toast({
         title: 'Success',
         description: 'System settings updated successfully',
       });
+
+      // Reload settings from database to confirm saved values
+      await loadSettings();
     } catch (error: any) {
       console.error('Error saving settings:', error);
       toast({
@@ -159,11 +159,23 @@ export default function AdminSettings() {
             <Label htmlFor="pricing">Price Per Minute (MYR)</Label>
             <Input
               id="pricing"
-              type="number"
-              step="0.01"
-              min="0.01"
+              type="text"
+              inputMode="decimal"
               value={pricingPerMinute}
-              onChange={(e) => setPricingPerMinute(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+                // Only allow numbers and decimal point
+                if (value === '' || /^\d*\.?\d*$/.test(value)) {
+                  setPricingPerMinute(value);
+                }
+              }}
+              onBlur={(e) => {
+                // Format to 2 decimals on blur
+                const num = parseFloat(e.target.value);
+                if (!isNaN(num) && num >= 0.01) {
+                  setPricingPerMinute(num.toFixed(2));
+                }
+              }}
               placeholder="0.15"
             />
             <p className="text-xs text-muted-foreground">
