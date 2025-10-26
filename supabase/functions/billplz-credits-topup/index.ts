@@ -91,19 +91,28 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error('Failed to create payment record');
     }
 
-    // Get app origin dynamically from request or environment
-    const origin = req.headers.get('origin') || req.headers.get('referer')?.split('/').slice(0, 3).join('/');
-    let appOrigin = origin || Deno.env.get('APP_ORIGIN');
+    // Get app origin dynamically from request headers
+    const origin = req.headers.get('origin');
+    const referer = req.headers.get('referer');
 
-    // Fallback to constructed URL only if no origin found
-    if (!appOrigin) {
-      const projectId = Deno.env.get('SUPABASE_URL')?.includes('ahexnoaazbveiyhplfrc')
-        ? 'ahexnoaazbveiyhplfrc'
-        : '';
-      appOrigin = `https://${projectId}.lovable.app`;
+    let appOrigin = origin;
+
+    // If no origin header, extract from referer
+    if (!appOrigin && referer) {
+      try {
+        const refererUrl = new URL(referer);
+        appOrigin = `${refererUrl.protocol}//${refererUrl.host}`;
+      } catch (e) {
+        console.error('Failed to parse referer:', e);
+      }
     }
 
-    console.log(`🌐 Using app origin: ${appOrigin}`);
+    // Fallback to environment variable
+    if (!appOrigin) {
+      appOrigin = Deno.env.get('APP_ORIGIN') || 'https://aicallpro.com';
+    }
+
+    console.log(`🌐 Using app origin: ${appOrigin} (from ${origin ? 'origin header' : referer ? 'referer header' : 'env/default'})`);
 
     // Create Billplz bill
     const billPlzData = new URLSearchParams({
