@@ -252,7 +252,13 @@ export function PromptsForm({ prompt, onClose, onSuccess }: PromptsFormProps) {
       onClose?.();
     },
     onError: (error: any) => {
-      toast.error("Gagal menyimpan prompt: " + error.message);
+      // Check for unique constraint violation
+      if (error.message?.includes('prompts_user_id_prompt_name_unique') ||
+          error.message?.includes('duplicate key')) {
+        toast.error("❌ Nama prompt sudah wujud! Sila gunakan nama yang berbeza.");
+      } else {
+        toast.error("Gagal menyimpan prompt: " + error.message);
+      }
     },
   });
 
