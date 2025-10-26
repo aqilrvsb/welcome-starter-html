@@ -27,12 +27,15 @@ serve(async (req) => {
 
   try {
     // Extract webhook type and token from URL path
-    // Expected formats:
-    // /webhook-handler/lead/{token}
-    // /webhook-handler/lead-call/{token}
+    // When deployed to Supabase, the function receives the full URL path
+    // Example: https://xxx.supabase.co/functions/v1/webhook-handler/lead/abc123
+    // url.pathname will be: /functions/v1/webhook-handler/lead/abc123
     const pathParts = url.pathname.split("/").filter(Boolean);
 
-    if (pathParts.length < 2) {
+    // Find the index of "webhook-handler" in the path
+    const handlerIndex = pathParts.indexOf("webhook-handler");
+
+    if (handlerIndex === -1 || pathParts.length < handlerIndex + 3) {
       return new Response(
         JSON.stringify({
           success: false,
@@ -42,8 +45,8 @@ serve(async (req) => {
       );
     }
 
-    const webhookType = pathParts[0]; // "lead" or "lead-call"
-    const webhookToken = pathParts[1];
+    const webhookType = pathParts[handlerIndex + 1]; // "lead" or "lead-call"
+    const webhookToken = pathParts[handlerIndex + 2]; // token
 
     // Validate webhook type
     const expectedType = webhookType === "lead" ? "lead_only" :
@@ -92,6 +95,7 @@ serve(async (req) => {
     // Validate required fields
     if (!payload.name || !payload.phone_number) {
       await logWebhookRequest(supabase, webhook.id, payload, "error", null, null, "Missing required fields: name and phone_number", Date.now() - startTime, ipAddress, userAgent);
+      await updateWebhookFailedStats(supabase, webhook);
 
       return new Response(
         JSON.stringify({
@@ -122,6 +126,7 @@ serve(async (req) => {
     if (contactError) {
       console.error("❌ Failed to create contact:", contactError);
       await logWebhookRequest(supabase, webhook.id, payload, "error", null, null, `Failed to create contact: ${contactError.message}`, Date.now() - startTime, ipAddress, userAgent);
+      await updateWebhookFailedStats(supabase, webhook);
 
       return new Response(
         JSON.stringify({
@@ -144,6 +149,7 @@ serve(async (req) => {
 
       if (!promptName) {
         await logWebhookRequest(supabase, webhook.id, payload, "error", contact.id, null, "No prompt specified and no default prompt configured", Date.now() - startTime, ipAddress, userAgent);
+        await updateWebhookFailedStats(supabase, webhook);
 
         return new Response(
           JSON.stringify({
@@ -165,6 +171,7 @@ serve(async (req) => {
       if (promptError || !prompt) {
         console.error("❌ Prompt not found:", promptError);
         await logWebhookRequest(supabase, webhook.id, payload, "error", contact.id, null, `Prompt not found: ${promptName}`, Date.now() - startTime, ipAddress, userAgent);
+        await updateWebhookFailedStats(supabase, webhook);
 
         return new Response(
           JSON.stringify({
@@ -199,6 +206,7 @@ serve(async (req) => {
       if (callError) {
         console.error("❌ Failed to create call log:", callError);
         await logWebhookRequest(supabase, webhook.id, payload, "error", contact.id, null, `Failed to initiate call: ${callError.message}`, Date.now() - startTime, ipAddress, userAgent);
+        await updateWebhookFailedStats(supabase, webhook);
 
         return new Response(
           JSON.stringify({
@@ -292,5 +300,21 @@ async function logWebhookRequest(
       });
   } catch (logError) {
     console.error("❌ Failed to log webhook request:", logError);
+  }
+}
+
+// Helper function to update webhook stats on failure
+async function updateWebhookFailedStats(supabase: any, webhook: any) {
+  try {
+    await supabase
+      .from("webhooks")
+      .update({
+        total_requests: webhook.total_requests + 1,
+        failed_requests: webhook.failed_requests + 1,
+        last_request_at: new Date().toISOString(),
+      })
+      .eq("id", webhook.id);
+  } catch (error) {
+    console.error("❌ Failed to update webhook stats:", error);
   }
 }

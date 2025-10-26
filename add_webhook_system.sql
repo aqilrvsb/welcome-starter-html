@@ -45,7 +45,7 @@ CREATE TABLE public.webhook_logs (
   request_payload jsonb NOT NULL,
   response_status text NOT NULL CHECK (response_status = ANY (ARRAY['success'::text, 'error'::text])),
   contact_id uuid,
-  call_id text,
+  call_id uuid,
   error_message text,
   processing_time_ms integer,
   ip_address text,
@@ -54,7 +54,8 @@ CREATE TABLE public.webhook_logs (
 
   CONSTRAINT webhook_logs_pkey PRIMARY KEY (id),
   CONSTRAINT webhook_logs_webhook_id_fkey FOREIGN KEY (webhook_id) REFERENCES public.webhooks(id) ON DELETE CASCADE,
-  CONSTRAINT webhook_logs_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE SET NULL
+  CONSTRAINT webhook_logs_contact_id_fkey FOREIGN KEY (contact_id) REFERENCES public.contacts(id) ON DELETE SET NULL,
+  CONSTRAINT webhook_logs_call_id_fkey FOREIGN KEY (call_id) REFERENCES public.call_logs(id) ON DELETE SET NULL
 );
 
 -- 5. Create indexes for performance
