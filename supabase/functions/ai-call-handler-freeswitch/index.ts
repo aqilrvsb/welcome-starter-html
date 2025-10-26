@@ -1106,7 +1106,6 @@ function startGreedyAIRequest(session: any, partialTranscript: string) {
   // Start AI request in background (non-blocking)
   session.greedyAI.promise = fetchAIResponseWithAbort(
     session,
-    partialTranscript,
     session.greedyAI.controller.signal
   ).catch(error => {
     // Silently ignore abort errors (expected when customer continues talking)
@@ -1120,11 +1119,10 @@ function startGreedyAIRequest(session: any, partialTranscript: string) {
 }
 
 // Fetch AI response with abort support
-async function fetchAIResponseWithAbort(session: any, transcript: string, signal: AbortSignal) {
-  // Prepare messages
+async function fetchAIResponseWithAbort(session: any, signal: AbortSignal) {
+  // Prepare messages - conversationHistory already has the latest user message
   const messages = [
     ...session.conversationHistory,
-    { role: 'user', content: transcript },
     {
       role: 'system',
       content: '⚠️ CRITICAL REMINDER: Your next response MUST start with !!Stage [name]!! - Choose the correct stage based on the conversation flow. Do not forget this!'
