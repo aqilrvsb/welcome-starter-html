@@ -23,6 +23,7 @@ import CampaignsPage from './pages/campaigns';
 import CampaignBatchPage from './pages/campaign-batch';
 import ContactsPage from './pages/contacts';
 import InvoicesPage from './pages/invoices';
+import WebhooksPage from './pages/dashboard/Webhooks';
 import Settings from "./pages/Settings";
 import Whatsapp from "./pages/Whatsapp";
 import CreditsTopup from "./pages/CreditsTopup";
@@ -174,15 +175,23 @@ function App() {
                           </CustomProtectedRoute>
                         } 
                       />
-                      <Route 
-                        path="/invoices" 
+                      <Route
+                        path="/invoices"
                         element={
                           <CustomProtectedRoute>
                             <InvoicesPage />
                           </CustomProtectedRoute>
-                        } 
+                        }
                       />
-                      <Route 
+                      <Route
+                        path="/webhooks"
+                        element={
+                          <CustomProtectedRoute>
+                            <WebhooksPage />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
                         path="/settings" 
                         element={
                           <CustomProtectedRoute>

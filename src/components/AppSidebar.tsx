@@ -11,7 +11,8 @@ import {
   XCircle,
   Users,
   Wallet,
-  Lightbulb
+  Lightbulb,
+  Webhook
 } from 'lucide-react';
 import { useCustomAuth } from '@/contexts/CustomAuthContext';
 import { useState, useEffect } from 'react';
@@ -40,6 +41,7 @@ const navigationItems = [
   { title: 'Campaigns', url: '/campaigns', icon: BarChart3 },
   { title: 'Call Logs', url: '/call-logs', icon: Phone },
   { title: 'Prompts', url: '/prompts', icon: Bot },
+  { title: 'Webhooks', url: '/webhooks', icon: Webhook },
   { title: 'Roadmap', url: '/roadmap', icon: Lightbulb },
   { title: 'Settings', url: '/settings', icon: Settings },
 ];
