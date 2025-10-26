@@ -1103,6 +1103,18 @@ async function getAIResponse(session: any, userMessage: string) {
     });
 
     const data = await response.json();
+
+    // Check for API errors
+    if (!response.ok || data.error) {
+      console.error('❌ OpenRouter API error:', data);
+      throw new Error(data.error?.message || `OpenRouter API error: ${response.status}`);
+    }
+
+    if (!data.choices || data.choices.length === 0) {
+      console.error('❌ No choices in response:', data);
+      throw new Error('No AI response generated');
+    }
+
     const aiResponse = data.choices[0]?.message?.content;
 
     if (aiResponse) {
