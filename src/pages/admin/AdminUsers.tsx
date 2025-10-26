@@ -363,9 +363,23 @@ export default function AdminUsers() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <Badge variant={user.account_type === 'pro' ? 'default' : 'secondary'}>
-                            {user.account_type || 'trial'}
-                          </Badge>
+                          <Select
+                            value={user.account_type || 'trial'}
+                            onValueChange={(value) => {
+                              updateUserMutation.mutate({
+                                userId: user.id,
+                                updates: { account_type: value },
+                              });
+                            }}
+                          >
+                            <SelectTrigger className="w-[100px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="trial">Trial</SelectItem>
+                              <SelectItem value="pro">Pro</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </TableCell>
                         <TableCell>
                           <button

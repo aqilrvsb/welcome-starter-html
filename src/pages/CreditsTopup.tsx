@@ -59,8 +59,8 @@ export default function CreditsTopup() {
   const [creditsBalance, setCreditsBalance] = useState(0);
   const [totalMinutesUsed, setTotalMinutesUsed] = useState(0); // This will show Pro-only usage
   const [proMinutesUsed, setProMinutesUsed] = useState(0); // Track Pro account minutes separately
-  const [trialMinutesUsed, setTrialMinutesUsed] = useState(0);
-  const [trialMinutesTotal, setTrialMinutesTotal] = useState(10.0);
+  const [trialBalanceMinutes, setTrialBalanceMinutes] = useState(10.0); // Remaining trial minutes
+  const [proBalanceMinutes, setProBalanceMinutes] = useState(0); // Remaining pro minutes
   const [accountType, setAccountType] = useState<'trial' | 'pro'>('trial');
   const [topupAmount, setTopupAmount] = useState<number>(20); // Default RM20
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -89,17 +89,13 @@ export default function CreditsTopup() {
       if (error) throw error;
 
       setCreditsBalance((userData as any)?.credits_balance || 0);
-      setTrialMinutesUsed((userData as any)?.trial_minutes_used || 0);
-      setTrialMinutesTotal((userData as any)?.trial_minutes_total || 10.0);
+      setTrialBalanceMinutes((userData as any)?.trial_balance_minutes || 0);
+      setProBalanceMinutes((userData as any)?.pro_balance_minutes || 0);
       setAccountType((userData as any)?.account_type || 'trial');
 
-      // Calculate Pro-only minutes: total_minutes_used - trial_minutes_used
+      // Calculate total minutes used (Pro + Trial used)
       const totalMins = (userData as any)?.total_minutes_used || 0;
-      const trialMins = (userData as any)?.trial_minutes_used || 0;
-      const proOnlyMins = Math.max(0, totalMins - trialMins);
-
-      setProMinutesUsed(proOnlyMins);
-      setTotalMinutesUsed(proOnlyMins); // Show Pro-only minutes in "Total Minutes Used" card
+      setTotalMinutesUsed(totalMins);
 
       // Get ALL transactions - both payments and credits_transactions
       // This will show: successful payments, failed payments, cancelled payments, and usage deductions
@@ -263,8 +259,14 @@ export default function CreditsTopup() {
     );
   }
 
-  const balanceMinutes = creditsBalance / pricingPerMinute;
-  const trialMinutesRemaining = Math.max(0, trialMinutesTotal - trialMinutesUsed);
+  // Balance Minutes shows Pro balance (from pro_balance_minutes)
+  const balanceMinutes = proBalanceMinutes;
+
+  // Trial Minutes shows trial balance (from trial_balance_minutes)
+  const trialMinutesRemaining = trialBalanceMinutes;
+
+  // Calculate trial minutes used (default 10.0 - remaining)
+  const trialMinutesUsedCalc = Math.max(0, 10.0 - trialBalanceMinutes);
 
   return (
     <div className="container mx-auto py-8 space-y-6">
@@ -346,7 +348,7 @@ export default function CreditsTopup() {
               <CardContent>
                 <div className="text-3xl font-bold text-success">{trialMinutesRemaining.toFixed(1)} min</div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {trialMinutesUsed.toFixed(1)} / {trialMinutesTotal.toFixed(1)} min used
+                  {trialMinutesUsedCalc.toFixed(1)} / 10.0 min used
                 </p>
               </CardContent>
             </Card>
