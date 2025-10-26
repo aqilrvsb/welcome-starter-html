@@ -121,11 +121,11 @@ BEGIN
     NEW.webhook_token := generate_webhook_token();
   END IF;
 
-  -- Generate URL based on type (update YOUR_PROJECT_REF with your Supabase project reference)
+  -- Generate URL based on type (Deno Deploy project: sifucallwebhook)
   IF NEW.webhook_type = 'lead_only' THEN
-    NEW.webhook_url := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/webhook-handler/lead/' || NEW.webhook_token;
+    NEW.webhook_url := 'https://sifucallwebhook.deno.dev/lead/' || NEW.webhook_token;
   ELSIF NEW.webhook_type = 'lead_and_call' THEN
-    NEW.webhook_url := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/webhook-handler/lead-call/' || NEW.webhook_token;
+    NEW.webhook_url := 'https://sifucallwebhook.deno.dev/lead-call/' || NEW.webhook_token;
   END IF;
 
   RETURN NEW;
