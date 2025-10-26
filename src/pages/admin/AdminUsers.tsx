@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Mail, Clock, CreditCard, Edit, Phone, Eye, EyeOff, Wallet, Key, Edit2 } from 'lucide-react';
+import { Users, Mail, Clock, CreditCard, Phone, Eye, EyeOff, Edit2 } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -19,13 +19,19 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface PhoneConfig {
   id: string;
@@ -54,6 +60,8 @@ export default function AdminUsers() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [sipDialogOpen, setSipDialogOpen] = useState(false);
   const [manageDialogOpen, setManageDialogOpen] = useState(false);
+  const [trialBalanceDialogOpen, setTrialBalanceDialogOpen] = useState(false);
+  const [proBalanceDialogOpen, setProBalanceDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showSipPassword, setShowSipPassword] = useState(false);
 
@@ -67,9 +75,11 @@ export default function AdminUsers() {
 
   const [userManagement, setUserManagement] = useState({
     new_password: '',
-    trial_balance_minutes: 0,
-    pro_balance_minutes: 0,
+    account_type: 'trial',
   });
+
+  const [trialBalance, setTrialBalance] = useState(0);
+  const [proBalance, setProBalance] = useState(0);
 
   const { data: allUsers, isLoading } = useQuery({
     queryKey: ['admin-all-users'],
@@ -155,11 +165,12 @@ export default function AdminUsers() {
       });
       queryClient.invalidateQueries({ queryKey: ['admin-all-users'] });
       setManageDialogOpen(false);
+      setTrialBalanceDialogOpen(false);
+      setProBalanceDialogOpen(false);
       setSelectedUser(null);
       setUserManagement({
         new_password: '',
-        trial_balance_minutes: 0,
-        pro_balance_minutes: 0,
+        account_type: 'trial',
       });
     },
     onError: (error: any) => {
@@ -200,10 +211,21 @@ export default function AdminUsers() {
     setSelectedUser(user);
     setUserManagement({
       new_password: '',
-      trial_balance_minutes: user.trial_balance_minutes || 0,
-      pro_balance_minutes: user.pro_balance_minutes || 0,
+      account_type: user.account_type || 'trial',
     });
     setManageDialogOpen(true);
+  };
+
+  const handleEditTrialBalance = (user: User) => {
+    setSelectedUser(user);
+    setTrialBalance(user.trial_balance_minutes || 0);
+    setTrialBalanceDialogOpen(true);
+  };
+
+  const handleEditProBalance = (user: User) => {
+    setSelectedUser(user);
+    setProBalance(user.pro_balance_minutes || 0);
+    setProBalanceDialogOpen(true);
   };
 
   const handleSaveSip = () => {
@@ -228,8 +250,7 @@ export default function AdminUsers() {
     if (!selectedUser) return;
 
     const updates: any = {
-      trial_balance_minutes: Number(userManagement.trial_balance_minutes),
-      pro_balance_minutes: Number(userManagement.pro_balance_minutes),
+      account_type: userManagement.account_type,
     };
 
     // Only include password if provided
@@ -248,6 +269,28 @@ export default function AdminUsers() {
     updateUserMutation.mutate({
       userId: selectedUser.id,
       updates,
+    });
+  };
+
+  const handleSaveTrialBalance = () => {
+    if (!selectedUser) return;
+
+    updateUserMutation.mutate({
+      userId: selectedUser.id,
+      updates: {
+        trial_balance_minutes: Number(trialBalance),
+      },
+    });
+  };
+
+  const handleSaveProBalance = () => {
+    if (!selectedUser) return;
+
+    updateUserMutation.mutate({
+      userId: selectedUser.id,
+      updates: {
+        pro_balance_minutes: Number(proBalance),
+      },
     });
   };
 
@@ -325,20 +368,26 @@ export default function AdminUsers() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEditProBalance(user)}
+                            className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+                          >
                             <CreditCard className="h-4 w-4 text-green-600" />
                             <span className="font-medium text-green-600">
                               {(user.pro_balance_minutes || 0).toFixed(1)} min
                             </span>
-                          </div>
+                          </button>
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEditTrialBalance(user)}
+                            className="flex items-center gap-2 hover:opacity-70 transition-opacity"
+                          >
                             <Clock className="h-4 w-4 text-blue-600" />
                             <span className="font-medium text-blue-600">
                               {(user.trial_balance_minutes || 0).toFixed(1)} min
                             </span>
-                          </div>
+                          </button>
                         </TableCell>
                         <TableCell>
                           {getUserSipStatus(user.id)}
@@ -474,88 +523,63 @@ export default function AdminUsers() {
         </DialogContent>
       </Dialog>
 
-      {/* User Management Dialog */}
+      {/* User Management Dialog - Account Type & Password */}
       <Dialog open={manageDialogOpen} onOpenChange={setManageDialogOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Manage User: {selectedUser?.username}</DialogTitle>
             <DialogDescription>
-              Update password and balance minutes for this user
+              Update account type and reset password
             </DialogDescription>
           </DialogHeader>
 
-          <Tabs defaultValue="balance" className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="balance">Balance & Minutes</TabsTrigger>
-              <TabsTrigger value="password">Reset Password</TabsTrigger>
-            </TabsList>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="account_type">Account Type</Label>
+              <Select
+                value={userManagement.account_type}
+                onValueChange={(value) => setUserManagement({ ...userManagement, account_type: value })}
+              >
+                <SelectTrigger id="account_type">
+                  <SelectValue placeholder="Select account type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="trial">Trial</SelectItem>
+                  <SelectItem value="pro">Pro</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            <TabsContent value="balance" className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="trial_balance">Trial Balance Minutes</Label>
+            <div className="space-y-2">
+              <Label htmlFor="new_password">New Password (Optional)</Label>
+              <div className="relative">
                 <Input
-                  id="trial_balance"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={userManagement.trial_balance_minutes}
-                  onChange={(e) => setUserManagement({ ...userManagement, trial_balance_minutes: parseFloat(e.target.value) || 0 })}
-                  placeholder="10.0"
+                  id="new_password"
+                  type={showPassword ? "text" : "password"}
+                  value={userManagement.new_password}
+                  onChange={(e) => setUserManagement({ ...userManagement, new_password: e.target.value })}
+                  placeholder="Enter new password (min 6 characters)"
+                  className="pr-10"
                 />
-                <p className="text-xs text-muted-foreground">
-                  Current: {selectedUser?.trial_balance_minutes?.toFixed(1)} minutes
-                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </Button>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="pro_balance">Pro Balance Minutes</Label>
-                <Input
-                  id="pro_balance"
-                  type="number"
-                  step="0.1"
-                  min="0"
-                  value={userManagement.pro_balance_minutes}
-                  onChange={(e) => setUserManagement({ ...userManagement, pro_balance_minutes: parseFloat(e.target.value) || 0 })}
-                  placeholder="0.0"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Current: {selectedUser?.pro_balance_minutes?.toFixed(1)} minutes
-                </p>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="password" className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="new_password">New Password</Label>
-                <div className="relative">
-                  <Input
-                    id="new_password"
-                    type={showPassword ? "text" : "password"}
-                    value={userManagement.new_password}
-                    onChange={(e) => setUserManagement({ ...userManagement, new_password: e.target.value })}
-                    placeholder="Enter new password (min 6 characters)"
-                    className="pr-10"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <Eye className="h-4 w-4 text-muted-foreground" />
-                    )}
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Leave blank to keep current password unchanged
-                </p>
-              </div>
-            </TabsContent>
-          </Tabs>
+              <p className="text-xs text-muted-foreground">
+                Leave blank to keep current password unchanged
+              </p>
+            </div>
+          </div>
 
           <DialogFooter>
             <Button
@@ -569,6 +593,102 @@ export default function AdminUsers() {
             </Button>
             <Button
               onClick={handleSaveUserManagement}
+              disabled={updateUserMutation.isPending}
+            >
+              {updateUserMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Trial Balance Dialog */}
+      <Dialog open={trialBalanceDialogOpen} onOpenChange={setTrialBalanceDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Trial Balance: {selectedUser?.username}</DialogTitle>
+            <DialogDescription>
+              Update trial balance minutes for this user
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="trial_balance">Trial Balance Minutes</Label>
+              <Input
+                id="trial_balance"
+                type="number"
+                step="0.1"
+                min="0"
+                value={trialBalance}
+                onChange={(e) => setTrialBalance(parseFloat(e.target.value) || 0)}
+                placeholder="10.0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {selectedUser?.trial_balance_minutes?.toFixed(1)} minutes
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setTrialBalanceDialogOpen(false);
+                setSelectedUser(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveTrialBalance}
+              disabled={updateUserMutation.isPending}
+            >
+              {updateUserMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pro Balance Dialog */}
+      <Dialog open={proBalanceDialogOpen} onOpenChange={setProBalanceDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Pro Balance: {selectedUser?.username}</DialogTitle>
+            <DialogDescription>
+              Update pro balance minutes for this user
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="pro_balance">Pro Balance Minutes</Label>
+              <Input
+                id="pro_balance"
+                type="number"
+                step="0.1"
+                min="0"
+                value={proBalance}
+                onChange={(e) => setProBalance(parseFloat(e.target.value) || 0)}
+                placeholder="0.0"
+              />
+              <p className="text-xs text-muted-foreground">
+                Current: {selectedUser?.pro_balance_minutes?.toFixed(1)} minutes
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setProBalanceDialogOpen(false);
+                setSelectedUser(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveProBalance}
               disabled={updateUserMutation.isPending}
             >
               {updateUserMutation.isPending ? 'Saving...' : 'Save Changes'}
