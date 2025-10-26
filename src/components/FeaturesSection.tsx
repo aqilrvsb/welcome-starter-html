@@ -127,7 +127,7 @@ export function FeaturesSection() {
               Ready to Transform Your Customer Experience?
             </h3>
             <p className="text-lg text-muted-foreground mb-6 max-w-2xl mx-auto">
-              Join thousands of businesses already using VoiceAI Pro to deliver 
+              Join thousands of businesses already using SifuCall to deliver 
               exceptional customer service and drive revenue growth.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">

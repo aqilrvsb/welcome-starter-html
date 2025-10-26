@@ -86,7 +86,7 @@ export default function AdminLogin() {
             </div>
           </div>
           <h1 className="text-3xl font-bold text-foreground">Admin Panel</h1>
-          <p className="text-muted-foreground mt-2">VoiceAI Pro Administration</p>
+          <p className="text-muted-foreground mt-2">SifuCall Administration</p>
         </div>
 
         {/* Login Form */}

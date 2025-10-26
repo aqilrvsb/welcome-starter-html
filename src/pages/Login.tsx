@@ -73,7 +73,7 @@ export default function Login() {
               <Bot className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-foreground">VoiceAI Pro</h1>
+          <h1 className="text-3xl font-bold text-foreground">SifuCall</h1>
           <p className="text-muted-foreground mt-2">Sign in to your account</p>
         </div>
 

@@ -94,7 +94,7 @@ export function AdminSidebar() {
           <Shield className="h-6 w-6 text-red-600" />
           <div>
             <h2 className="text-lg font-bold">Admin Panel</h2>
-            <p className="text-xs text-muted-foreground">VoiceAI Pro</p>
+            <p className="text-xs text-muted-foreground">SifuCall</p>
           </div>
         </div>
       </SidebarHeader>

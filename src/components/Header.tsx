@@ -54,7 +54,7 @@ export function Header() {
             <div className="hero-gradient p-2 rounded-lg">
               <Bot className="h-6 w-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-foreground">VoiceAI Pro</span>
+            <span className="text-xl font-bold text-foreground">SifuCall</span>
           </div>
 
           {/* Desktop Navigation */}

@@ -11,7 +11,7 @@ export function Footer() {
               <div className="hero-gradient p-2 rounded-lg">
                 <Bot className="h-6 w-6 text-white" />
               </div>
-              <span className="text-xl font-bold">VoiceAI Pro</span>
+              <span className="text-xl font-bold">SifuCall</span>
             </div>
             <p className="text-background/70 mb-6 leading-relaxed">
               The leading platform for building and deploying AI voice agents. 
@@ -133,7 +133,7 @@ export function Footer() {
         {/* Bottom Section */}
         <div className="border-t border-background/20 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
           <p className="text-background/70 text-sm">
-            © 2024 VoiceAI Pro. All rights reserved.
+            © 2024 SifuCall. All rights reserved.
           </p>
           <div className="flex space-x-6 mt-4 md:mt-0">
             <a href="#" className="text-background/70 hover:text-background transition-smooth text-sm">

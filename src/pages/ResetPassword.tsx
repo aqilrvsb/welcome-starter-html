@@ -53,7 +53,7 @@ export default function ResetPassword() {
           <div className="hero-gradient p-3 rounded-xl inline-block mb-4">
             <Bot className="h-8 w-8 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">VoiceAI Pro</h1>
+          <h1 className="text-2xl font-bold text-foreground">SifuCall</h1>
           <p className="text-muted-foreground">Reset your password</p>
         </div>
 
