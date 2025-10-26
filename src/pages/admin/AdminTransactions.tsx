@@ -85,7 +85,7 @@ export default function AdminTransactions() {
         .from('payments')
         .select(`
           *,
-          users!inner (
+          users!payments_user_id_fkey (
             username,
             email
           )
@@ -99,7 +99,7 @@ export default function AdminTransactions() {
         .from('credits_transactions')
         .select(`
           *,
-          users!inner (
+          users!credits_transactions_user_id_fkey (
             username,
             email
           )

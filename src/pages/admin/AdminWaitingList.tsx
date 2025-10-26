@@ -98,7 +98,7 @@ export default function AdminWaitingList() {
         .from('pro_applications')
         .select(`
           *,
-          users!inner (
+          users!pro_applications_user_id_fkey (
             username,
             email,
             phone_number
