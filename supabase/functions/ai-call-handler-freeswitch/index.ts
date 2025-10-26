@@ -881,6 +881,13 @@ NOW FOLLOW THE USER'S PROMPT BELOW:
     stages: stages, // All available stages from prompt
     currentStage: stages.length > 0 ? stages[0] : null, // Start with first stage
     promptId: promptId, // Store for database updates
+    // 🚀 GREEDY INFERENCE - AI request tracking
+    greedyAI: {
+      controller: null as AbortController | null,  // For cancellation
+      promise: null as Promise<any> | null,        // Current AI request
+      partialTranscript: '',                       // Building transcript
+      isActive: false                              // Is greedy mode active
+    }
   };
 
   activeCalls.set(callId, session);
@@ -1056,6 +1063,9 @@ async function transcribeAudio(session: any, audioBytes: Uint8Array) {
         session.transcript.push({ speaker: 'user', text: transcript, timestamp: new Date() });
         session.conversationHistory.push({ role: 'user', content: transcript });
 
+        // 🚀 GREEDY INFERENCE: Start AI immediately with partial transcript
+        startGreedyAIRequest(session, transcript);
+
         // ONLY call getAIResponse if we have actual speech
         // This prevents filler words from playing on background noise
         await getAIResponse(session, transcript);
@@ -1071,53 +1081,163 @@ async function transcribeAudio(session: any, audioBytes: Uint8Array) {
   }
 }
 
+// 🚀 GREEDY INFERENCE: Start AI request immediately (can be cancelled)
+function startGreedyAIRequest(session: any, partialTranscript: string) {
+  // Skip if AI is already speaking or if customer stopped talking (silence detected)
+  if (session.isSpeaking || !session.isProcessingAudio) {
+    return;
+  }
+
+  // Cancel previous greedy request if exists
+  if (session.greedyAI.controller) {
+    console.log('🔄 Cancelling previous greedy AI request (customer still talking)');
+    session.greedyAI.controller.abort();
+  }
+
+  // Update partial transcript
+  session.greedyAI.partialTranscript = partialTranscript;
+  session.greedyAI.isActive = true;
+
+  // Create new AbortController for this request
+  session.greedyAI.controller = new AbortController();
+
+  console.log(`🚀 Starting greedy AI request with partial: "${partialTranscript.substring(0, 50)}..."`);
+
+  // Start AI request in background (non-blocking)
+  session.greedyAI.promise = fetchAIResponseWithAbort(
+    session,
+    partialTranscript,
+    session.greedyAI.controller.signal
+  ).catch(error => {
+    // Silently ignore abort errors (expected when customer continues talking)
+    if (error.name === 'AbortError') {
+      console.log('✅ Greedy AI request cancelled (expected)');
+      return null;
+    }
+    console.error('❌ Greedy AI error:', error);
+    return null;
+  });
+}
+
+// Fetch AI response with abort support
+async function fetchAIResponseWithAbort(session: any, transcript: string, signal: AbortSignal) {
+  // Prepare messages
+  const messages = [
+    ...session.conversationHistory,
+    { role: 'user', content: transcript },
+    {
+      role: 'system',
+      content: '⚠️ CRITICAL REMINDER: Your next response MUST start with !!Stage [name]!! - Choose the correct stage based on the conversation flow. Do not forget this!'
+    }
+  ];
+
+  // Call OpenRouter with abort signal
+  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': 'https://aicallpro.com',
+      'X-Title': 'AI Call Pro'
+    },
+    body: JSON.stringify({
+      model: 'openai/gpt-4o-mini',
+      messages: messages,
+      temperature: 0.7,
+      max_tokens: 150,
+    }),
+    signal: signal  // 👈 This allows cancellation!
+  });
+
+  if (!response.ok) {
+    throw new Error(`OpenRouter API error: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (!data.choices || data.choices.length === 0) {
+    throw new Error('No AI response generated');
+  }
+
+  return data.choices[0]?.message?.content;
+}
+
 async function getAIResponse(session: any, userMessage: string) {
   try {
     console.log("🤖 Getting AI response...");
 
-    // Inject a reminder before the latest user message to force compliance (optimized: no array copy)
-    let messages = session.conversationHistory;
-    if (session.conversationHistory.length > 1) {
-      messages = [
-        ...session.conversationHistory,
-        {
-          role: 'system',
-          content: '⚠️ CRITICAL REMINDER: Your next response MUST start with !!Stage [name]!! - Choose the correct stage based on the conversation flow. Do not forget this!'
+    let aiResponse = null;
+
+    // 🚀 GREEDY INFERENCE: Check if we already have a response from greedy request
+    if (session.greedyAI.isActive && session.greedyAI.promise) {
+      console.log('⚡ Checking if greedy AI response is ready...');
+
+      try {
+        // Wait for greedy response (might already be complete!)
+        aiResponse = await session.greedyAI.promise;
+
+        if (aiResponse) {
+          console.log('✅ Using greedy AI response (saved time!)');
+          // Clear greedy state
+          session.greedyAI.isActive = false;
+          session.greedyAI.promise = null;
+          session.greedyAI.controller = null;
         }
-      ];
+      } catch (error) {
+        // Greedy request failed or was cancelled, fall back to normal request
+        console.log('⚠️  Greedy AI failed, falling back to normal request');
+        aiResponse = null;
+      }
     }
 
-    // Direct call to OpenRouter GPT-4o-mini - reliable and fast
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://aicallpro.com',
-        'X-Title': 'AI Call Pro'
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-4o-mini',
-        messages: messages,
-        temperature: 0.7,
-        max_tokens: 150,
-      }),
-    });
+    // If no greedy response, make normal request
+    if (!aiResponse) {
+      console.log('📡 Making fresh AI request...');
 
-    const data = await response.json();
+      // Inject a reminder before the latest user message to force compliance
+      let messages = session.conversationHistory;
+      if (session.conversationHistory.length > 1) {
+        messages = [
+          ...session.conversationHistory,
+          {
+            role: 'system',
+            content: '⚠️ CRITICAL REMINDER: Your next response MUST start with !!Stage [name]!! - Choose the correct stage based on the conversation flow. Do not forget this!'
+          }
+        ];
+      }
 
-    // Check for API errors
-    if (!response.ok || data.error) {
-      console.error('❌ OpenRouter API error:', data);
-      throw new Error(data.error?.message || `OpenRouter API error: ${response.status}`);
+      // Direct call to OpenRouter GPT-4o-mini - reliable and fast
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://aicallpro.com',
+          'X-Title': 'AI Call Pro'
+        },
+        body: JSON.stringify({
+          model: 'openai/gpt-4o-mini',
+          messages: messages,
+          temperature: 0.7,
+          max_tokens: 150,
+        }),
+      });
+
+      const data = await response.json();
+
+      // Check for API errors
+      if (!response.ok || data.error) {
+        console.error('❌ OpenRouter API error:', data);
+        throw new Error(data.error?.message || `OpenRouter API error: ${response.status}`);
+      }
+
+      if (!data.choices || data.choices.length === 0) {
+        console.error('❌ No choices in response:', data);
+        throw new Error('No AI response generated');
+      }
+
+      aiResponse = data.choices[0]?.message?.content;
     }
-
-    if (!data.choices || data.choices.length === 0) {
-      console.error('❌ No choices in response:', data);
-      throw new Error('No AI response generated');
-    }
-
-    const aiResponse = data.choices[0]?.message?.content;
 
     if (aiResponse) {
       console.log(`💬 AI (raw): "${aiResponse}"`);
