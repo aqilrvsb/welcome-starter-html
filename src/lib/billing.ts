@@ -31,29 +31,10 @@ export const createUserTrialSubscription = async (userId: string): Promise<UserS
       return existingSubscription;
     }
 
-    // Create trial using database function
-    const { data, error } = await supabase.rpc('create_trial_subscription', {
-      p_user_id: userId
-    });
-
-    if (error) {
-      console.error('Error creating trial subscription:', error);
-      return null;
-    }
-
-    // Fetch the created subscription
-    const { data: subscription, error: fetchError } = await supabase
-      .from('user_subscriptions')
-      .select('*')
-      .eq('id', data)
-      .maybeSingle();
-
-    if (fetchError) {
-      console.error('Error fetching subscription:', fetchError);
-      return null;
-    }
-
-    return subscription;
+    // NOTE: create_trial_subscription function removed
+    // Now using trial_balance_minutes in users table instead
+    // Return null if no subscription exists
+    return null;
   } catch (error) {
     console.error('Error creating trial subscription:', error);
     return null;
@@ -64,7 +45,7 @@ export const getUserSubscription = async (userId: string): Promise<UserSubscript
   try {
     // Expire old pending payments first
     await expirePendingPayments(userId);
-    
+
     const { data: subscription, error } = await supabase
       .from('user_subscriptions')
       .select('*')
@@ -78,11 +59,8 @@ export const getUserSubscription = async (userId: string): Promise<UserSubscript
       return null;
     }
 
-    if (!subscription) {
-      // No subscription found, create trial
-      return await createUserTrialSubscription(userId);
-    }
-
+    // NOTE: No longer auto-creating trial subscriptions
+    // Users now have trial_balance_minutes in their user record by default
     return subscription;
   } catch (error) {
     console.error('Error getting subscription:', error);
