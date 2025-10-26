@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Save, DollarSign, Clock, Phone } from 'lucide-react';
+import { Loader2, Save, DollarSign, Clock, Phone, Bot } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -25,6 +25,7 @@ export default function AdminSettings() {
   const [maxConcurrentCalls, setMaxConcurrentCalls] = useState('3');
   const [defaultSipProxyPrimary, setDefaultSipProxyPrimary] = useState('sip1.alienvoip.com');
   const [defaultSipProxySecondary, setDefaultSipProxySecondary] = useState('sip3.alienvoip.com');
+  const [openrouterModel, setOpenrouterModel] = useState('openai/gpt-4o-mini');
 
   useEffect(() => {
     loadSettings();
@@ -43,6 +44,7 @@ export default function AdminSettings() {
           'max_concurrent_calls',
           'default_sip_proxy_primary',
           'default_sip_proxy_secondary',
+          'openrouter_model',
         ]);
 
       if (error) throw error;
@@ -64,6 +66,9 @@ export default function AdminSettings() {
             break;
           case 'default_sip_proxy_secondary':
             setDefaultSipProxySecondary(setting.setting_value);
+            break;
+          case 'openrouter_model':
+            setOpenrouterModel(setting.setting_value);
             break;
         }
       });
@@ -92,6 +97,7 @@ export default function AdminSettings() {
         { key: 'max_concurrent_calls', value: maxConcurrentCalls },
         { key: 'default_sip_proxy_primary', value: defaultSipProxyPrimary },
         { key: 'default_sip_proxy_secondary', value: defaultSipProxySecondary },
+        { key: 'openrouter_model', value: openrouterModel },
       ];
 
       // Update all settings
@@ -268,6 +274,34 @@ export default function AdminSettings() {
           <p className="text-xs text-muted-foreground">
             These defaults will be pre-filled when configuring SIP for new Pro accounts.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* AI Model Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Bot className="h-5 w-5" />
+            AI Model Configuration
+          </CardTitle>
+          <CardDescription>
+            Configure which AI model to use for generating responses
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="openrouter-model">OpenRouter Model</Label>
+            <Input
+              id="openrouter-model"
+              type="text"
+              value={openrouterModel}
+              onChange={(e) => setOpenrouterModel(e.target.value)}
+              placeholder="openai/gpt-4o-mini"
+            />
+            <p className="text-xs text-muted-foreground">
+              Enter the OpenRouter model identifier (e.g., openai/gpt-4o-mini, anthropic/claude-3-haiku, meta-llama/llama-3-8b-instruct)
+            </p>
+          </div>
         </CardContent>
       </Card>
 

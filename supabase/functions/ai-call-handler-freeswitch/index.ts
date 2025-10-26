@@ -32,6 +32,62 @@ const supabaseAdmin = createClient(
 );
 
 // ============================================================================
+// SYSTEM SETTINGS - Load OpenRouter Model from database
+// ============================================================================
+
+interface SystemSettings {
+  openrouterModel: string; // e.g., 'openai/gpt-4o-mini'
+}
+
+// Cache for system settings (refreshed every 5 minutes)
+let systemSettingsCache: SystemSettings | null = null;
+let systemSettingsCacheTime = 0;
+const SETTINGS_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+async function getSystemSettings(): Promise<SystemSettings> {
+  const now = Date.now();
+
+  // Return cached settings if still valid
+  if (systemSettingsCache && (now - systemSettingsCacheTime) < SETTINGS_CACHE_TTL) {
+    return systemSettingsCache;
+  }
+
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('system_settings')
+      .select('setting_key, setting_value')
+      .eq('setting_key', 'openrouter_model')
+      .single();
+
+    if (error) {
+      console.error('❌ Failed to load system settings:', error);
+      // Return default on error
+      return {
+        openrouterModel: 'openai/gpt-4o-mini'
+      };
+    }
+
+    const settings: SystemSettings = {
+      openrouterModel: data?.setting_value || 'openai/gpt-4o-mini'
+    };
+
+    // Update cache
+    systemSettingsCache = settings;
+    systemSettingsCacheTime = now;
+
+    console.log(`⚙️  System Settings Loaded: Model=${settings.openrouterModel}`);
+
+    return settings;
+  } catch (err) {
+    console.error('❌ Error loading system settings:', err);
+    // Return default on error
+    return {
+      openrouterModel: 'openai/gpt-4o-mini'
+    };
+  }
+}
+
+// ============================================================================
 // TRIAL/PRO ACCOUNT SYSTEM - Helper Functions
 // ============================================================================
 
@@ -723,6 +779,10 @@ async function handleCallStart(socket: WebSocket, metadata: any) {
     console.log(`🎙️ Recording will be saved to: ${recordingUrl}`);
   }
 
+  // Load system settings (OpenRouter model)
+  const systemSettings = await getSystemSettings();
+  console.log(`⚙️  Using OpenRouter Model: ${systemSettings.openrouterModel}`);
+
   // Fetch voice config and prompts (same as Twilio code)
   let voiceId = "UcqZLa941Kkt8ZhEEybf";
   let voiceSpeed = 1.5;
@@ -887,7 +947,9 @@ NOW FOLLOW THE USER'S PROMPT BELOW:
       promise: null as Promise<any> | null,        // Current AI request
       partialTranscript: '',                       // Building transcript
       isActive: false                              // Is greedy mode active
-    }
+    },
+    // ⚙️ SYSTEM SETTINGS - OpenRouter model
+    systemSettings: systemSettings
   };
 
   activeCalls.set(callId, session);
@@ -1156,7 +1218,7 @@ async function fetchAIResponseWithAbort(session: any, signal: AbortSignal) {
       'X-Title': 'AI Call Pro'
     },
     body: JSON.stringify({
-      model: 'openai/gpt-4o-mini',
+      model: session.systemSettings.openrouterModel,
       messages: messages,
       temperature: 0.7,
       max_tokens: 150,
@@ -1231,7 +1293,7 @@ async function getAIResponse(session: any, userMessage: string) {
           'X-Title': 'AI Call Pro'
         },
         body: JSON.stringify({
-          model: 'openai/gpt-4o-mini',
+          model: session.systemSettings.openrouterModel,
           messages: messages,
           temperature: 0.7,
           max_tokens: 150,
