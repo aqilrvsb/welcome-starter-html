@@ -127,6 +127,8 @@ export default function Roadmap() {
         description: description.trim(),
         category,
         status: 'submitted',
+        priority: 'medium',
+        votes: 0,
       });
 
       if (error) throw error;
