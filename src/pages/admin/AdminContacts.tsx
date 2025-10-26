@@ -18,7 +18,7 @@ export default function AdminContacts() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('contacts')
-        .select('*, users(username, email)')
+        .select('*, users!contacts_user_id_fkey(username, email)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];

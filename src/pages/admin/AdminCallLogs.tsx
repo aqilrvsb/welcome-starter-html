@@ -19,7 +19,7 @@ export default function AdminCallLogs() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('call_logs')
-        .select('*, users(username, email)')
+        .select('*, users!call_logs_user_id_fkey(username, email)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];

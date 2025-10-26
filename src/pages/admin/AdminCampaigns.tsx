@@ -19,7 +19,7 @@ export default function AdminCampaigns() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('campaigns')
-        .select('*, users(username, email)')
+        .select('*, users!campaigns_user_id_fkey(username, email)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data || [];
