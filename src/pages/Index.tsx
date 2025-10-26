@@ -11,7 +11,7 @@ const Index = () => {
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Phone className="h-6 w-6 text-[#7959ef]" />
-            <span className="text-xl font-bold text-gray-900">VoiceAI</span>
+            <span className="text-xl font-bold text-gray-900">SifuCall</span>
           </div>
           <nav className="hidden md:flex items-center gap-8">
             <a href="#features" className="text-gray-600 hover:text-[#7959ef] transition-colors">Features</a>
@@ -213,7 +213,7 @@ const Index = () => {
             <div>
               <div className="flex items-center gap-2 mb-4">
                 <Phone className="h-6 w-6 text-[#7959ef]" />
-                <span className="text-xl font-bold">VoiceAI</span>
+                <span className="text-xl font-bold">SifuCall</span>
               </div>
               <p className="text-gray-400">
                 AI-powered voice automation for modern businesses
@@ -244,7 +244,7 @@ const Index = () => {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
-            <p>&copy; 2025 VoiceAI. All rights reserved.</p>
+            <p>&copy; 2025 SifuCall. All rights reserved.</p>
           </div>
         </div>
       </footer>

@@ -1,4 +1,4 @@
-# AI Call Pro - Intelligent Voice AI System
+# SifuCall - Intelligent Voice AI System
 
 ## Project info
 

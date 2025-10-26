@@ -115,7 +115,7 @@ export function AppSidebar() {
         <div className="flex items-center gap-2 px-4 py-2">
           {!isCollapsed && (
             <div className="flex items-center justify-between w-full">
-              <h2 className="text-lg font-semibold text-primary">VoiceAI</h2>
+              <h2 className="text-lg font-semibold text-primary">SifuCall</h2>
               {getSubscriptionBadge()}
             </div>
           )}
