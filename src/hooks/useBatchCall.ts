@@ -173,7 +173,7 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
       // Check balance before creating batch call
       const { data: userData, error: userError } = await supabase
         .from('users')
-        .select('account_type, trial_minutes_total, trial_minutes_used, credits_balance')
+        .select('account_type, trial_balance_minutes, pro_balance_minutes')
         .eq('id', user.id)
         .single();
 
@@ -185,28 +185,24 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
       const estimatedMinutes = validNumbers.length * 2; // Rough estimate: 2 minutes per call
 
       if (accountType === 'trial') {
-        const trialTotal = userData?.trial_minutes_total || 10.0;
-        const trialUsed = userData?.trial_minutes_used || 0;
-        const trialRemaining = trialTotal - trialUsed;
+        const trialBalance = userData?.trial_balance_minutes || 0;
 
-        if (trialRemaining <= 0) {
+        if (trialBalance <= 0) {
           throw new Error('Trial balance insufficient. Please switch to Pro Account or top up credits.');
         }
 
-        if (trialRemaining < estimatedMinutes) {
-          throw new Error(`Trial balance insufficient. You have ${trialRemaining.toFixed(1)} minutes remaining but need approximately ${estimatedMinutes} minutes. Please switch to Pro Account or top up credits.`);
+        if (trialBalance < estimatedMinutes) {
+          throw new Error(`Trial balance insufficient. You have ${trialBalance.toFixed(1)} minutes remaining but need approximately ${estimatedMinutes} minutes. Please switch to Pro Account or top up credits.`);
         }
       } else if (accountType === 'pro') {
-        const creditsBalance = userData?.credits_balance || 0;
-        const balanceMinutes = creditsBalance / pricingPerMinute; // Convert RM to minutes
-        const estimatedCost = estimatedMinutes * pricingPerMinute;
+        const proBalance = userData?.pro_balance_minutes || 0;
 
-        if (creditsBalance <= 0) {
-          throw new Error('Credits balance insufficient. Please top up credits to continue.');
+        if (proBalance <= 0) {
+          throw new Error('Pro balance insufficient. Please top up credits to continue.');
         }
 
-        if (balanceMinutes < estimatedMinutes) {
-          throw new Error(`Balance minutes insufficient. You have ${balanceMinutes.toFixed(1)} minutes (RM${creditsBalance.toFixed(2)}) but need approximately ${estimatedMinutes} minutes (RM${estimatedCost.toFixed(2)}). Please top up credits.`);
+        if (proBalance < estimatedMinutes) {
+          throw new Error(`Pro balance insufficient. You have ${proBalance.toFixed(1)} minutes but need approximately ${estimatedMinutes} minutes. Please top up credits.`);
         }
       }
 
