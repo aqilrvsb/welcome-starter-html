@@ -934,14 +934,14 @@ async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
     session.lastAudioActivityTime = Date.now();
   }
 
-  // Process if we have enough audio AND 0.8 seconds of silence detected
+  // Process if we have enough audio AND 1.5 seconds of silence detected
   const totalSize = session.audioBuffer.reduce((sum: number, arr: Uint8Array) => sum + arr.length, 0);
   const timeSinceLastActivity = Date.now() - (session.lastAudioActivityTime || Date.now());
   const hasMinimumAudio = totalSize >= 16000; // At least 1 second of audio
-  const hasSilence = timeSinceLastActivity >= 800; // 0.8 seconds of silence (optimized for faster response)
+  const hasSilence = timeSinceLastActivity >= 1500; // 1.5 seconds of silence (reduced from 2.0s for faster response)
 
   if (hasMinimumAudio && hasSilence) {
-    console.log(`🔇 Detected 0.8 seconds of silence, processing ${totalSize} bytes...`);
+    console.log(`🔇 Detected 1.5 seconds of silence, processing ${totalSize} bytes...`);
     session.isProcessingAudio = true;
 
     const combined = new Uint8Array(totalSize);
@@ -1087,7 +1087,7 @@ async function getAIResponse(session: any, userMessage: string) {
       ];
     }
 
-    // Direct call to OpenRouter GPT-4o-mini - optimized for low latency
+    // Direct call to OpenRouter GPT-4o-mini - reliable and fast
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -1099,8 +1099,8 @@ async function getAIResponse(session: any, userMessage: string) {
       body: JSON.stringify({
         model: 'openai/gpt-4o-mini',
         messages: messages,
-        temperature: 0.5,  // Reduced from 0.7 for faster, more focused responses
-        max_tokens: 70,    // Reduced from 150 for faster generation
+        temperature: 0.7,
+        max_tokens: 150,
       }),
     });
 
