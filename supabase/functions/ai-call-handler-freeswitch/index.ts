@@ -1087,7 +1087,7 @@ async function getAIResponse(session: any, userMessage: string) {
       ];
     }
 
-    // Direct call to OpenRouter GPT-5 Nano - ultra-low latency for maximum speed
+    // Direct call to OpenRouter GPT-4o-mini - reliable and fast
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -1097,7 +1097,7 @@ async function getAIResponse(session: any, userMessage: string) {
         'X-Title': 'AI Call Pro'
       },
       body: JSON.stringify({
-        model: 'openai/gpt-5-nano',
+        model: 'openai/gpt-4o-mini',
         messages: messages,
         temperature: 0.7,
         max_tokens: 150,
