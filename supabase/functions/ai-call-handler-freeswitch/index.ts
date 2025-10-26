@@ -941,14 +941,31 @@ async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
     session.lastAudioActivityTime = Date.now();
   }
 
-  // Process if we have enough audio AND 1.0 seconds of silence detected
+  // 🎯 SMART ENDPOINTING: Dynamic timeout based on audio length
   const totalSize = session.audioBuffer.reduce((sum: number, arr: Uint8Array) => sum + arr.length, 0);
   const timeSinceLastActivity = Date.now() - (session.lastAudioActivityTime || Date.now());
   const hasMinimumAudio = totalSize >= 16000; // At least 1 second of audio
-  const hasSilence = timeSinceLastActivity >= 1000; // 1.0 seconds of silence (optimized for faster response)
+
+  // Calculate dynamic timeout based on audio buffer size (proxy for response length)
+  // 8000 samples/sec * 2 bytes/sample = 16000 bytes/sec
+  const estimatedSeconds = totalSize / 16000;
+  let requiredSilence: number;
+
+  if (estimatedSeconds <= 1.5) {
+    // Short answer (1-5 words): "ya", "okay", "setuju"
+    requiredSilence = 700; // 0.7s
+  } else if (estimatedSeconds <= 4.0) {
+    // Medium answer (6-15 words): normal conversation
+    requiredSilence = 1000; // 1.0s
+  } else {
+    // Long answer (16+ words): detailed responses, addresses
+    requiredSilence = 1200; // 1.2s
+  }
+
+  const hasSilence = timeSinceLastActivity >= requiredSilence;
 
   if (hasMinimumAudio && hasSilence) {
-    console.log(`🔇 Detected 1.0 seconds of silence, processing ${totalSize} bytes...`);
+    console.log(`🎯 Smart endpointing: ${estimatedSeconds.toFixed(1)}s audio → ${requiredSilence}ms timeout → processing ${totalSize} bytes...`);
     session.isProcessingAudio = true;
 
     const combined = new Uint8Array(totalSize);
