@@ -116,7 +116,7 @@ async function getSipConfig(userId: string) {
       sip_password: Deno.env.get('TRIAL_SIP_PASSWORD') || 'Xh7Yk5Ydcg',
       sip_proxy_primary: Deno.env.get('TRIAL_SIP_PROXY') || 'sip3.alienvoip.com',
       sip_caller_id: Deno.env.get('TRIAL_CALLER_ID') || '010894904',
-      gateway_name: 'external',
+      gateway_name: 'external::1360d030-6e0c-4617-83e0-8d80969010cf',
     };
 
     console.log(`✅ TRIAL SIP: ${sipConfig.sip_username}@${sipConfig.sip_proxy_primary}`);
@@ -138,7 +138,7 @@ async function getSipConfig(userId: string) {
       sip_password: phoneConfig.sip_password,
       sip_proxy_primary: phoneConfig.sip_proxy_primary,
       sip_caller_id: phoneConfig.sip_caller_id || '010894904',
-      gateway_name: 'external',
+      gateway_name: 'external::1360d030-6e0c-4617-83e0-8d80969010cf',
     };
 
     console.log(`✅ PRO SIP: ${sipConfig.sip_username}@${sipConfig.sip_proxy_primary}`);
