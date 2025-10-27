@@ -48,7 +48,6 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [productFilter, setProductFilter] = useState("");
-  const [callStatusFilter, setCallStatusFilter] = useState<string>("all");
   const [editingContact, setEditingContact] = useState<string | null>(null);
   const [editFormData, setEditFormData] = useState({ name: "", phone_number: "", product: "", info: "" });
   const [editErrors, setEditErrors] = useState<{ name?: string; phone_number?: string; product?: string }>({});
@@ -120,25 +119,14 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
       contact => {
         const matchesSearch = contact.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           contact.phone_number.includes(searchTerm);
-        const matchesProduct = !productFilter || 
+        const matchesProduct = !productFilter ||
           (contact.product && contact.product.toLowerCase().includes(productFilter.toLowerCase()));
-        
-        // Filter by call status
-        let matchesCallStatus = true;
-        if (callStatusFilter !== "all") {
-          const stats = contactStats.get(contact.id);
-          if (callStatusFilter === "answered") {
-            matchesCallStatus = stats ? stats.answered_calls > 0 : false;
-          } else if (callStatusFilter === "never_answered") {
-            matchesCallStatus = !stats || stats.answered_calls === 0;
-          }
-        }
-        
-        return matchesSearch && matchesProduct && matchesCallStatus;
+
+        return matchesSearch && matchesProduct;
       }
     );
     setFilteredContacts(filtered);
-  }, [contacts, searchTerm, productFilter, callStatusFilter, contactStats]);
+  }, [contacts, searchTerm, productFilter, contactStats]);
 
   const handleSelectAll = () => {
     if (selectedContacts.length === filteredContacts.length && selectedContacts.length > 0) {
@@ -358,16 +346,6 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
                 onChange={(e) => setProductFilter(e.target.value)}
                 className="w-48"
               />
-              <Select value={callStatusFilter} onValueChange={setCallStatusFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by call status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Contacts</SelectItem>
-                  <SelectItem value="answered">Dah Angkat</SelectItem>
-                  <SelectItem value="never_answered">Tak Pernah Angkat</SelectItem>
-                </SelectContent>
-              </Select>
               {filteredContacts.length > 0 && (
                 <>
                   <Button
