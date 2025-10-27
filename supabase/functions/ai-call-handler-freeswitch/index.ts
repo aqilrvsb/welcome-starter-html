@@ -511,10 +511,20 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
   // ✅ Log which SIP configuration we're using
   console.log(`📞 SIP Gateway: ${sipConfig.gateway_name} | User: ${sipConfig.sip_username}@${sipConfig.sip_proxy_primary}`);
 
-  const conn = await Deno.connect({
-    hostname: FREESWITCH_HOST,
-    port: FREESWITCH_ESL_PORT,
-  });
+  // ⚠️ Check if FREESWITCH_HOST is configured
+  if (!FREESWITCH_HOST) {
+    console.error('❌ CRITICAL: FREESWITCH_HOST environment variable is not set!');
+    throw new Error('FREESWITCH_HOST not configured in Deno Deploy environment variables');
+  }
+
+  console.log(`🔌 Connecting to FreeSWITCH at ${FREESWITCH_HOST}:${FREESWITCH_ESL_PORT}...`);
+
+  try {
+    const conn = await Deno.connect({
+      hostname: FREESWITCH_HOST,
+      port: FREESWITCH_ESL_PORT,
+    });
+    console.log(`✅ Connected to FreeSWITCH successfully!`);
 
   // 🎯 DETECT ACTUAL SERVER: Get the real server IP we connected to
   // When FREESWITCH_HOST is load balancer (144.126.243.181), this detects if we connected to 159.223.45.224 or 159.223.65.33
@@ -596,6 +606,12 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
   conn.close();
 
   return callId;
+
+  } catch (error) {
+    console.error(`❌ Failed to originate call to ${phoneNumber}:`, error);
+    console.error(`❌ FreeSWITCH connection details: ${FREESWITCH_HOST}:${FREESWITCH_ESL_PORT}`);
+    throw new Error(`Failed to originate call: ${error.message}`);
+  }
 }
 
 /**
