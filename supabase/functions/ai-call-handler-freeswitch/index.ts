@@ -380,11 +380,14 @@ const activeCalls = new Map();
 
 async function handleBatchCall(req: Request): Promise<Response> {
   try {
-    const { userId, campaignName, existingCampaignId, promptId, phoneNumbers, phoneNumbersWithNames } = await req.json();
+    // 🎯 SIMPLIFIED: Frontend handles campaign creation, backend just receives campaignId
+    const { userId, campaignId, promptId, phoneNumbers, phoneNumbersWithNames } = await req.json();
 
     if (!userId || !phoneNumbers) {
       throw new Error('Missing userId or phoneNumbers');
     }
+
+    console.log(`📞 Batch call request: ${phoneNumbers.length} numbers${campaignId ? ` for campaign ${campaignId}` : ' (no campaign)'}`);
 
     const { data: userData } = await supabaseAdmin
       .from('users')
@@ -412,62 +415,6 @@ async function handleBatchCall(req: Request): Promise<Response> {
 
     if (!prompt) throw new Error('Prompt not found');
 
-    // 🎯 CAMPAIGN HANDLING: 3 scenarios
-    let campaign = null;
-
-    if (existingCampaignId) {
-      // SCENARIO 1: Add to existing campaign
-      const { data: existingCampaign, error: fetchError } = await supabaseAdmin
-        .from('campaigns')
-        .select('*')
-        .eq('id', existingCampaignId)
-        .eq('user_id', userId)
-        .single();
-
-      if (fetchError || !existingCampaign) {
-        throw new Error('Existing campaign not found or unauthorized');
-      }
-
-      campaign = existingCampaign;
-
-      // Update total numbers count
-      await supabaseAdmin
-        .from('campaigns')
-        .update({
-          total_numbers: (existingCampaign.total_numbers || 0) + phoneNumbers.length,
-          status: 'in_progress' // Reactivate if completed
-        })
-        .eq('id', existingCampaignId);
-
-      console.log(`✅ Adding ${phoneNumbers.length} calls to existing campaign: ${campaign.campaign_name} (ID: ${campaign.id})`);
-
-    } else if (campaignName?.trim()) {
-      // SCENARIO 2: Create new campaign
-      const { data: createdCampaign, error: campaignError } = await supabaseAdmin
-        .from('campaigns')
-        .insert({
-          user_id: userId,
-          campaign_name: campaignName.trim(),
-          prompt_id: prompt.id,
-          status: 'in_progress',
-          total_numbers: phoneNumbers.length,
-        })
-        .select()
-        .single();
-
-      if (campaignError) {
-        console.error('❌ Failed to create campaign:', campaignError);
-        throw new Error('Failed to create campaign: ' + campaignError.message);
-      }
-
-      campaign = createdCampaign;
-      console.log(`✅ Campaign created: ${campaign.campaign_name} (ID: ${campaign.id})`);
-
-    } else {
-      // SCENARIO 3: No campaign - calls go directly to call_logs
-      console.log(`⏭️  No campaign provided - creating call logs without campaign`);
-    }
-
     const WEBSOCKET_URL = `wss://${req.headers.get('host')}`;
 
     // Process calls
@@ -483,7 +430,7 @@ async function handleBatchCall(req: Request): Promise<Response> {
         const callId = await originateCallWithAudioStream({
           phoneNumber: cleanNumber,
           userId,
-          campaignId: campaign?.id || null, // Can be null if no campaign
+          campaignId: campaignId || null, // Use campaignId directly from request
           promptId: prompt.id,
           websocketUrl: WEBSOCKET_URL,
           sipConfig: sipConfig, // ✅ Pass SIP config
@@ -504,7 +451,7 @@ async function handleBatchCall(req: Request): Promise<Response> {
           .maybeSingle();
 
         const { error: insertError } = await supabaseAdmin.from('call_logs').insert({
-          campaign_id: campaign?.id || null, // Optional - can be null
+          campaign_id: campaignId || null, // Use campaignId directly from request
           user_id: userId,
           call_id: callId,
           phone_number: cleanNumber, // Store normalized number
@@ -531,21 +478,12 @@ async function handleBatchCall(req: Request): Promise<Response> {
     const successCount = results.filter(r => r.success).length;
     const failedCount = results.filter(r => !r.success).length;
 
-    // Update campaign stats only if campaign was created
-    if (campaign) {
-      await supabaseAdmin
-        .from('campaigns')
-        .update({
-          status: 'completed',
-          successful_calls: successCount,
-          failed_calls: failedCount
-        })
-        .eq('id', campaign.id);
-    }
+    // Backend doesn't update campaign stats - frontend already did that
+    console.log(`✅ Batch call complete: ${successCount} successful, ${failedCount} failed`);
 
     return new Response(JSON.stringify({
       success: true,
-      campaign_id: campaign?.id || null,
+      campaign_id: campaignId || null,
       summary: {
         total: phoneNumbers.length,
         successful: successCount,
