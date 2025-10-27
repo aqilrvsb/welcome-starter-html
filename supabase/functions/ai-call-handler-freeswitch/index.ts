@@ -380,7 +380,7 @@ const activeCalls = new Map();
 
 async function handleBatchCall(req: Request): Promise<Response> {
   try {
-    const { userId, campaignName, promptId, phoneNumbers, phoneNumbersWithNames } = await req.json();
+    const { userId, campaignName, existingCampaignId, promptId, phoneNumbers, phoneNumbersWithNames } = await req.json();
 
     if (!userId || !phoneNumbers) {
       throw new Error('Missing userId or phoneNumbers');
@@ -412,9 +412,37 @@ async function handleBatchCall(req: Request): Promise<Response> {
 
     if (!prompt) throw new Error('Prompt not found');
 
-    // 🎯 Campaign is OPTIONAL - only create if name is provided
+    // 🎯 CAMPAIGN HANDLING: 3 scenarios
     let campaign = null;
-    if (campaignName?.trim()) {
+
+    if (existingCampaignId) {
+      // SCENARIO 1: Add to existing campaign
+      const { data: existingCampaign, error: fetchError } = await supabaseAdmin
+        .from('campaigns')
+        .select('*')
+        .eq('id', existingCampaignId)
+        .eq('user_id', userId)
+        .single();
+
+      if (fetchError || !existingCampaign) {
+        throw new Error('Existing campaign not found or unauthorized');
+      }
+
+      campaign = existingCampaign;
+
+      // Update total numbers count
+      await supabaseAdmin
+        .from('campaigns')
+        .update({
+          total_numbers: (existingCampaign.total_numbers || 0) + phoneNumbers.length,
+          status: 'in_progress' // Reactivate if completed
+        })
+        .eq('id', existingCampaignId);
+
+      console.log(`✅ Adding ${phoneNumbers.length} calls to existing campaign: ${campaign.campaign_name} (ID: ${campaign.id})`);
+
+    } else if (campaignName?.trim()) {
+      // SCENARIO 2: Create new campaign
       const { data: createdCampaign, error: campaignError } = await supabaseAdmin
         .from('campaigns')
         .insert({
@@ -434,8 +462,10 @@ async function handleBatchCall(req: Request): Promise<Response> {
 
       campaign = createdCampaign;
       console.log(`✅ Campaign created: ${campaign.campaign_name} (ID: ${campaign.id})`);
+
     } else {
-      console.log(`⏭️  No campaign name provided - creating call logs without campaign`);
+      // SCENARIO 3: No campaign - calls go directly to call_logs
+      console.log(`⏭️  No campaign provided - creating call logs without campaign`);
     }
 
     const WEBSOCKET_URL = `wss://${req.headers.get('host')}`;
