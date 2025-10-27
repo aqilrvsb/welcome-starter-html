@@ -129,18 +129,6 @@ export function CampaignDetails({ campaignId, onBack }: CampaignDetailsProps) {
     enabled: !!user,
   });
 
-  // Fetch contacts count
-  const { data: contactsData } = useQuery({
-    queryKey: ['dashboard-contacts', user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase.from('contacts').select('*').eq('user_id', user.id);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!user,
-  });
-
   // Calculate minutes used from call logs
   const totalMinutesUsed = useMemo(() => {
     if (!callLogs) return 0;
@@ -390,32 +378,28 @@ export function CampaignDetails({ campaignId, onBack }: CampaignDetailsProps) {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="outline" size="sm" onClick={onBack}>
-                <ArrowLeft className="h-4 w-4 mr-2" />
-                Kembali
-              </Button>
-              <div>
-                <CardTitle>{campaign.campaign_name}</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Dicipta pada {new Date(campaign.created_at).toLocaleDateString('ms-MY', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  })}
-                </p>
-              </div>
-            </div>
-            <StatusBadge status={campaign.status} type="campaign" />
+      {/* Header - Campaign Name with Back Button */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Button variant="outline" size="sm" onClick={onBack}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Kembali
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">{campaign.campaign_name}</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Dicipta pada {new Date(campaign.created_at).toLocaleDateString('ms-MY', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </p>
           </div>
-        </CardHeader>
-      </Card>
+        </div>
+        <StatusBadge status={campaign.status} type="campaign" />
+      </div>
 
       {/* Date Filter */}
       <motion.div
@@ -459,22 +443,8 @@ export function CampaignDetails({ campaignId, onBack }: CampaignDetailsProps) {
         </Card>
       </motion.div>
 
-      {/* First Row: Overview Cards (Campaigns, Contacts, Minutes) */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <motion.div whileHover={{ scale: 1.02, y: -4 }} transition={{ duration: 0.3 }}>
-          <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Campaigns</CardTitle>
-              <div className="p-2 rounded-lg bg-primary/10">
-                <Target className="h-4 w-4 text-primary" />
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold text-primary">1</div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
+      {/* First Row: Overview Cards (Campaign-specific data) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <motion.div whileHover={{ scale: 1.02, y: -4 }} transition={{ duration: 0.3 }}>
           <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -484,7 +454,8 @@ export function CampaignDetails({ campaignId, onBack }: CampaignDetailsProps) {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-primary">{contactsData?.length || 0}</div>
+              <div className="text-3xl font-bold text-primary">{stats.totalCalls}</div>
+              <p className="text-xs text-muted-foreground mt-1">Contacts in this campaign</p>
             </CardContent>
           </Card>
         </motion.div>
@@ -501,7 +472,7 @@ export function CampaignDetails({ campaignId, onBack }: CampaignDetailsProps) {
               <div className="text-3xl font-bold text-primary">
                 {totalMinutesUsed.toFixed(1)} min
               </div>
-              <p className="text-xs text-muted-foreground mt-1">Pro account usage</p>
+              <p className="text-xs text-muted-foreground mt-1">Campaign usage</p>
             </CardContent>
           </Card>
         </motion.div>

@@ -554,14 +554,17 @@ export function CallLogsTable({ campaignId }: CallLogsTableProps = {}) {
 
   return (
     <div className="space-y-6">
-      <CallLogsFilters 
-        filters={filters}
-        onFiltersChange={setFilters}
-        totalCount={callLogs?.length || 0}
-        filteredCount={filteredLogs.length}
-        totalCost={totalCost}
-      />
-      
+      {/* Only show filters if not filtering by campaign */}
+      {!campaignId && (
+        <CallLogsFilters
+          filters={filters}
+          onFiltersChange={setFilters}
+          totalCount={callLogs?.length || 0}
+          filteredCount={filteredLogs.length}
+          totalCost={totalCost}
+        />
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Call Logs</CardTitle>

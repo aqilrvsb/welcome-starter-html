@@ -37,7 +37,9 @@
       "Bash(wrangler --version:*)",
       "Bash(git reset:*)",
       "Bash(npm run dev:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(timeout 2 sleep:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []
