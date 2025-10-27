@@ -471,6 +471,7 @@ async function handleBatchCall(req: Request): Promise<Response> {
 
         return { success: true, phoneNumber, callId };
       } catch (error) {
+        console.error(`❌ Failed to call ${phoneNumber}:`, error);
         return { success: false, phoneNumber, error: String(error) };
       }
     }));
@@ -533,8 +534,11 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
     `origination_caller_id_number=${phoneNumber}`,
   ].join(',');
 
+  // ✅ Use the actual SIP gateway from sipConfig
+  const gatewayName = sipConfig.gateway_name || 'external';
+
   // Originate and park the call first
-  const originateCmd = `api originate {${vars}}sofia/gateway/external::1360d030-6e0c-4617-83e0-8d80969010cf/${phoneNumber} &park()`;
+  const originateCmd = `api originate {${vars}}sofia/gateway/${gatewayName}/${phoneNumber} &park()`;
 
   console.log(`📞 Originating: ${originateCmd}`);
 
