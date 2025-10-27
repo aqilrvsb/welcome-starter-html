@@ -39,7 +39,9 @@
       "Bash(npm run dev:*)",
       "Bash(find:*)",
       "Bash(timeout 2 sleep:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(cat:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "ask": []

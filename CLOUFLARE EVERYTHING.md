@@ -202,16 +202,16 @@ echo "YOUR_AZURE_SPEECH_KEY" | wrangler secret put AZURE_SPEECH_KEY
 echo "southeastasia" | wrangler secret put AZURE_SPEECH_REGION
 
 # 3. OpenRouter API Key
-echo "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" | wrangler secret put OPENROUTER_API_KEY
+echo "YOUR_OPENROUTER_API_KEY" | wrangler secret put OPENROUTER_API_KEY
 
 # 4. ElevenLabs API Key
-echo "sk_74be6861daa232153faeaca94ed6e26783cdd6fecf3fa489" | wrangler secret put ELEVENLABS_API_KEY
+echo "YOUR_ELEVENLABS_API_KEY" | wrangler secret put ELEVENLABS_API_KEY
 
 # 5. Supabase URL
-echo "https://ahexnoaazbveiyhplfrc.supabase.co" | wrangler secret put SUPABASE_URL
+echo "YOUR_SUPABASE_URL" | wrangler secret put SUPABASE_URL
 
-# 6. Supabase Service Role Key
-echo "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFoZXhub2FhemJ2ZWl5aHBsZnJjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MDI0MzAyMiwiZXhwIjoyMDc1ODE5MDIyfQ.a2Te8vxVqbgKl7E7qK7Uah6lqx6QxXgUh-9sqqtUx8I" | wrangler secret put SUPABASE_SERVICE_ROLE_KEY
+# 6. Supabase Service Role Key (⚠️ NEVER share this key!)
+echo "YOUR_SUPABASE_SERVICE_ROLE_KEY" | wrangler secret put SUPABASE_SERVICE_ROLE_KEY
 
 # 7. FreeSWITCH Host
 echo "159.223.45.224" | wrangler secret put FREESWITCH_HOST
