@@ -41,7 +41,8 @@
       "Bash(timeout 2 sleep:*)",
       "Bash(git checkout:*)",
       "Bash(cat:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(java -version:*)"
     ],
     "deny": [],
     "ask": []

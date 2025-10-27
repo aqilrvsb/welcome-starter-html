@@ -222,14 +222,68 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
         customer_name: contactsMap.get(phone) || null
       }));
 
-      // 🚀 NEW: Call Deno Deploy directly (faster, no 25-sec timeout!)
-      // Direct HTTP POST to Deno Deploy batch-call endpoint
+      // 🎯 FRONTEND CAMPAIGN HANDLING: Create or update campaign BEFORE calling backend
+      let campaignId: string | null = null;
+
+      if (data.existingCampaignId) {
+        // SCENARIO 1: Add to existing campaign
+        campaignId = data.existingCampaignId;
+
+        const { data: existingCampaign, error: fetchError } = await supabase
+          .from('campaigns')
+          .select('*')
+          .eq('id', data.existingCampaignId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (fetchError || !existingCampaign) {
+          throw new Error('Existing campaign not found or unauthorized');
+        }
+
+        // Update total numbers count
+        await supabase
+          .from('campaigns')
+          .update({
+            total_numbers: (existingCampaign.total_numbers || 0) + validNumbers.length,
+            status: 'in_progress'
+          })
+          .eq('id', data.existingCampaignId);
+
+        console.log(`✅ Adding ${validNumbers.length} calls to existing campaign: ${existingCampaign.campaign_name}`);
+
+      } else if (data.campaignName?.trim()) {
+        // SCENARIO 2: Create new campaign
+        const { data: createdCampaign, error: campaignError } = await supabase
+          .from('campaigns')
+          .insert({
+            user_id: user.id,
+            campaign_name: data.campaignName.trim(),
+            prompt_id: data.promptId,
+            status: 'in_progress',
+            total_numbers: validNumbers.length,
+          })
+          .select()
+          .single();
+
+        if (campaignError) {
+          console.error('❌ Failed to create campaign:', campaignError);
+          throw new Error('Failed to create campaign: ' + campaignError.message);
+        }
+
+        campaignId = createdCampaign.id;
+        console.log(`✅ Campaign created: ${createdCampaign.campaign_name} (ID: ${campaignId})`);
+
+      } else {
+        // SCENARIO 3: No campaign - calls go directly to call_logs
+        console.log(`⏭️  No campaign selected - calls will only appear in Call Logs`);
+      }
+
+      // 🚀 Call Deno Deploy - backend ONLY makes calls, doesn't handle campaigns
       const DENO_DEPLOY_URL = 'https://sifucall.deno.dev/batch-call';
 
       const payload = {
         userId: user.id,
-        campaignName: data.campaignName,
-        existingCampaignId: data.existingCampaignId, // Include existingCampaignId
+        campaignId: campaignId, // Send campaignId (not campaignName!)
         promptId: data.promptId,
         phoneNumbers: validNumbers,
         phoneNumbersWithNames: phoneNumbersWithNames,
@@ -238,26 +292,42 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
         maxRetryAttempts: data.maxRetryAttempts,
       };
 
-      console.log('🚀 Sending batch call request:', {
-        campaignName: payload.campaignName,
-        existingCampaignId: payload.existingCampaignId,
+      console.log('🚀 Sending batch call request to backend:', {
+        campaignId: payload.campaignId,
+        promptId: payload.promptId,
         phoneCount: payload.phoneNumbers.length
       });
 
-      const response = await fetch(DENO_DEPLOY_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload)
-      });
+      // Add timeout to prevent hanging (60 seconds max)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Batch call failed');
+      try {
+        const response = await fetch(DENO_DEPLOY_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Batch call failed');
+        }
+
+        return await response.json();
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+
+        if (error.name === 'AbortError') {
+          throw new Error('Request timeout - batch call may still be processing in background. Please check Call Logs.');
+        }
+        throw error;
       }
-
-      return await response.json();
     },
     onSuccess: (response) => {
       toast.success(`🎉 Kempen batch call berjaya dimulakan!
