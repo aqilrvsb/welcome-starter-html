@@ -605,7 +605,7 @@ export function CallLogsTable({ campaignId }: CallLogsTableProps = {}) {
                     </TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Prompt</TableHead>
-                    <TableHead>Campaign</TableHead>
+                    {!campaignId && <TableHead>Campaign</TableHead>}
                     <TableHead>Details</TableHead>
                     <TableHead>Stage</TableHead>
                     <TableHead>
@@ -670,9 +670,11 @@ export function CallLogsTable({ campaignId }: CallLogsTableProps = {}) {
                     <TableCell>
                       {(log as any).prompts?.prompt_name || '-'}
                     </TableCell>
-                    <TableCell>
-                      {(log as any).campaigns?.campaign_name || '-'}
-                    </TableCell>
+                    {!campaignId && (
+                      <TableCell>
+                        {(log as any).campaigns?.campaign_name || '-'}
+                      </TableCell>
+                    )}
                     <TableCell>
                       <span className="text-xs text-muted-foreground truncate max-w-[150px] block">
                         {log.details || '-'}
@@ -753,7 +755,7 @@ export function CallLogsTable({ campaignId }: CallLogsTableProps = {}) {
                       <p className="text-xs text-muted-foreground">Phone: {log.caller_number}</p>
                       <p className="text-xs text-muted-foreground">Product: {(log as any).contacts?.product || '-'}</p>
                       <p className="text-xs text-muted-foreground">Prompt: {(log as any).prompts?.prompt_name || '-'}</p>
-                      <p className="text-xs text-muted-foreground">Campaign: {(log as any).campaigns?.campaign_name || '-'}</p>
+                      {!campaignId && <p className="text-xs text-muted-foreground">Campaign: {(log as any).campaigns?.campaign_name || '-'}</p>}
                       <p className="text-xs text-muted-foreground">Details: {log.details || '-'}</p>
                       <p className="text-xs text-primary font-medium">Stage: {log.stage_reached || log.metadata?.stage_reached || '-'}</p>
                     </div>
