@@ -60,7 +60,11 @@ interface Prompt {
   first_message: string;
 }
 
-export function CallLogsTable() {
+interface CallLogsTableProps {
+  campaignId?: string; // Optional campaign filter
+}
+
+export function CallLogsTable({ campaignId }: CallLogsTableProps = {}) {
   const { user } = useCustomAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -78,10 +82,10 @@ export function CallLogsTable() {
 
   // Get call logs from Supabase
   const { data: callLogs, isLoading, error } = useQuery({
-    queryKey: ['call-logs', user?.id, filters],
+    queryKey: ['call-logs', user?.id, filters, campaignId],
     queryFn: async () => {
       if (!user) return [];
-      
+
       // Build query with filtering and sorting, joining with contacts, campaigns, and prompts
       // Note: prompts is now a direct relationship via prompt_id column
       let query = supabase
@@ -93,6 +97,11 @@ export function CallLogsTable() {
           prompts!call_logs_prompt_id_fkey(prompt_name)
         `)
         .eq('user_id', user.id);
+
+      // Filter by campaign if provided
+      if (campaignId) {
+        query = query.eq('campaign_id', campaignId);
+      }
 
       // Add date range filter if provided
       if (filters.dateFrom) {
