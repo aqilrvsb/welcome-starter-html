@@ -3,11 +3,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ArrowLeft, CheckCircle, XCircle, Users } from "lucide-react";
+import { ArrowLeft, CheckCircle, XCircle, PhoneCall, AlertCircle } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { isCallSuccessful, isCallFailed } from "@/lib/statusUtils";
 import { useMemo } from "react";
 import { CallLogsTable } from "@/components/call-logs/CallLogsTable";
+import { motion } from "framer-motion";
 
 interface CampaignDetailsProps {
   campaignId: string;
@@ -68,22 +69,34 @@ export function CampaignDetails({ campaignId, onBack }: CampaignDetailsProps) {
     if (!callLogs || callLogs.length === 0) {
       return {
         totalCalls: campaign?.total_numbers || 0,
-        successfulCalls: campaign?.successful_calls || 0,
-        failedCalls: campaign?.failed_calls || 0,
-        successRate: 0
+        answeredCalls: 0,
+        unansweredCalls: 0,
+        voicemailFailedCalls: 0,
+        answeredPercent: '0.0',
+        unansweredPercent: '0.0',
+        voicemailFailedPercent: '0.0'
       };
     }
 
-    const successfulCalls = callLogs.filter(log => isCallSuccessful(log.status)).length;
-    const failedCalls = callLogs.filter(log => isCallFailed(log.status)).length;
     const totalCalls = callLogs.length;
-    const successRate = totalCalls > 0 ? (successfulCalls / totalCalls * 100) : 0;
+    const answeredCalls = callLogs.filter(log => log.status === 'answered').length;
+    const unansweredCalls = callLogs.filter(log => log.status === 'no_answered').length;
+    const voicemailCalls = callLogs.filter(log => log.status === 'voicemail').length;
+    const failedCalls = callLogs.filter(log => log.status === 'failed').length;
+    const voicemailFailedCalls = voicemailCalls + failedCalls;
+
+    const answeredPercent = totalCalls > 0 ? ((answeredCalls / totalCalls) * 100).toFixed(1) : '0.0';
+    const unansweredPercent = totalCalls > 0 ? ((unansweredCalls / totalCalls) * 100).toFixed(1) : '0.0';
+    const voicemailFailedPercent = totalCalls > 0 ? ((voicemailFailedCalls / totalCalls) * 100).toFixed(1) : '0.0';
 
     return {
       totalCalls,
-      successfulCalls,
-      failedCalls,
-      successRate: Math.round(successRate * 10) / 10
+      answeredCalls,
+      unansweredCalls,
+      voicemailFailedCalls,
+      answeredPercent,
+      unansweredPercent,
+      voicemailFailedPercent
     };
   }, [callLogs, campaign]);
 
@@ -141,48 +154,79 @@ export function CampaignDetails({ campaignId, onBack }: CampaignDetailsProps) {
         </CardHeader>
       </Card>
 
-      {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-blue-500" />
-              <div>
-                <p className="text-sm text-muted-foreground">Jumlah Nombor</p>
-                <p className="text-2xl font-bold">{stats.totalCalls}</p>
-                {campaign?.total_numbers !== stats.totalCalls && (
-                  <p className="text-xs text-muted-foreground">
-                    Expected: {campaign?.total_numbers}
-                  </p>
-                )}
+      {/* Statistics - Dashboard Style */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <motion.div
+          whileHover={{ scale: 1.02, y: -4 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card className="card-soft border-primary/20 transition-smooth hover:border-primary/40">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Calls</CardTitle>
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <PhoneCall className="h-4 w-4 text-blue-600" />
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="h-4 w-4 text-success" />
-              <div>
-                <p className="text-sm text-muted-foreground">Angkat Call</p>
-                <p className="text-2xl font-bold text-success">{stats.successfulCalls}</p>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600">{stats.totalCalls}</div>
+              <p className="text-xs text-muted-foreground mt-1">Filtered by date</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          whileHover={{ scale: 1.02, y: -4 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card className="card-soft border-success/20 transition-smooth hover:border-success/40">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Answered</CardTitle>
+              <div className="p-2 rounded-lg bg-success/10">
+                <CheckCircle className="h-4 w-4 text-success" />
               </div>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2">
-              <XCircle className="h-4 w-4 text-destructive" />
-              <div>
-                <p className="text-sm text-muted-foreground">Tak Angkat Call</p>
-                <p className="text-2xl font-bold text-destructive">{stats.failedCalls}</p>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-success">{stats.answeredCalls}</div>
+              <p className="text-xs text-muted-foreground mt-1">{stats.answeredPercent}% of total</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          whileHover={{ scale: 1.02, y: -4 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card className="card-soft border-orange-200 transition-smooth hover:border-orange-400">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Unanswered</CardTitle>
+              <div className="p-2 rounded-lg bg-orange-500/10">
+                <AlertCircle className="h-4 w-4 text-orange-600" />
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-orange-600">{stats.unansweredCalls}</div>
+              <p className="text-xs text-muted-foreground mt-1">{stats.unansweredPercent}% of total</p>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          whileHover={{ scale: 1.02, y: -4 }}
+          transition={{ duration: 0.3 }}
+        >
+          <Card className="card-soft border-destructive/20 transition-smooth hover:border-destructive/40">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Voicemail/Failed</CardTitle>
+              <div className="p-2 rounded-lg bg-destructive/10">
+                <AlertCircle className="h-4 w-4 text-destructive" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-destructive">{stats.voicemailFailedCalls}</div>
+              <p className="text-xs text-muted-foreground mt-1">{stats.voicemailFailedPercent}% of total</p>
+            </CardContent>
+          </Card>
+        </motion.div>
       </div>
 
       {/* Prompt Details */}
