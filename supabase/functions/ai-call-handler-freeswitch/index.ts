@@ -545,7 +545,8 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
   ].join(',');
 
   // ✅ Use the actual SIP gateway from sipConfig
-  const gatewayName = sipConfig.gateway_name || 'external';
+  // Gateway name format: "external::1360d030-6e0c-4617-83e0-8d80969010cf"
+  const gatewayName = sipConfig.gateway_name || 'external::1360d030-6e0c-4617-83e0-8d80969010cf';
 
   // Originate and park the call first
   const originateCmd = `api originate {${vars}}sofia/gateway/${gatewayName}/${phoneNumber} &park()`;
