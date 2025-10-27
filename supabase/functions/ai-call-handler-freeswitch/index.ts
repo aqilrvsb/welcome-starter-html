@@ -22,7 +22,7 @@ const AZURE_SPEECH_KEY = Deno.env.get('AZURE_SPEECH_KEY');
 const AZURE_SPEECH_REGION = Deno.env.get('AZURE_SPEECH_REGION') || 'southeastasia';
 const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
 const ELEVENLABS_API_KEY = Deno.env.get('ELEVENLABS_API_KEY');
-const FREESWITCH_HOST = Deno.env.get('FREESWITCH_HOST') || '159.223.45.224';
+const FREESWITCH_HOST = Deno.env.get('FREESWITCH_HOST');
 const FREESWITCH_ESL_PORT = parseInt(Deno.env.get('FREESWITCH_ESL_PORT') || '8021');
 const FREESWITCH_ESL_PASSWORD = Deno.env.get('FREESWITCH_ESL_PASSWORD') || 'ClueCon';
 
@@ -547,6 +547,11 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
     port: FREESWITCH_ESL_PORT,
   });
 
+  // 🎯 DETECT ACTUAL SERVER: Get the real server IP we connected to
+  // When FREESWITCH_HOST is load balancer (144.126.243.181), this detects if we connected to 159.223.45.224 or 159.223.65.33
+  const actualServerIP = (conn.remoteAddr as Deno.NetAddr).hostname;
+  console.log(`🔍 Connected to FreeSWITCH: ${actualServerIP} (via ${FREESWITCH_HOST})`);
+
   // Authenticate
   await readESLResponse(conn);
   await sendESLCommand(conn, `auth ${FREESWITCH_ESL_PASSWORD}`);
@@ -583,7 +588,9 @@ async function originateCallWithAudioStream(params: any): Promise<string> {
   // Prepare recording filename (will be started when customer answers)
   const recordingFilename = `${callId}_${Date.now()}.wav`;
   const recordingPath = `/usr/local/freeswitch/recordings/${recordingFilename}`;
-  const recordingUrl = `https://159.223.45.224/recordings/${recordingFilename}`;
+  // ✅ Use the ACTUAL server IP that handled the call, not load balancer IP
+  // This ensures client can retrieve recording from the correct server
+  const recordingUrl = `https://${actualServerIP}/recordings/${recordingFilename}`;
 
   // Now start audio streaming on the parked call
   // uuid_audio_stream <uuid> start <wss-url> [mono|mixed|stereo] [8000|16000] [metadata]
