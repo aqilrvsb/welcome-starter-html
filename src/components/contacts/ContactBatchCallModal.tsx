@@ -175,6 +175,12 @@ export function ContactBatchCallModal({
                       if (value === 'none') {
                         form.setValue('campaignName', '');
                         form.setValue('existingCampaignId', undefined);
+                      } else if (value === 'existing') {
+                        form.setValue('campaignName', '');
+                        form.setValue('existingCampaignId', undefined);
+                      } else if (value === 'new') {
+                        form.setValue('campaignName', '');
+                        form.setValue('existingCampaignId', undefined);
                       }
                     }}>
                       {/* Option 1: No Campaign */}

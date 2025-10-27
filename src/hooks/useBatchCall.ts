@@ -226,22 +226,30 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
       // Direct HTTP POST to Deno Deploy batch-call endpoint
       const DENO_DEPLOY_URL = 'https://sifucall.deno.dev/batch-call';
 
+      const payload = {
+        userId: user.id,
+        campaignName: data.campaignName,
+        existingCampaignId: data.existingCampaignId, // Include existingCampaignId
+        promptId: data.promptId,
+        phoneNumbers: validNumbers,
+        phoneNumbersWithNames: phoneNumbersWithNames,
+        retryEnabled: data.retryEnabled,
+        retryIntervalMinutes: data.retryIntervalMinutes,
+        maxRetryAttempts: data.maxRetryAttempts,
+      };
+
+      console.log('🚀 Sending batch call request:', {
+        campaignName: payload.campaignName,
+        existingCampaignId: payload.existingCampaignId,
+        phoneCount: payload.phoneNumbers.length
+      });
+
       const response = await fetch(DENO_DEPLOY_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          userId: user.id,
-          campaignName: data.campaignName,
-          existingCampaignId: data.existingCampaignId, // Include existingCampaignId
-          promptId: data.promptId,
-          phoneNumbers: validNumbers,
-          phoneNumbersWithNames: phoneNumbersWithNames,
-          retryEnabled: data.retryEnabled,
-          retryIntervalMinutes: data.retryIntervalMinutes,
-          maxRetryAttempts: data.maxRetryAttempts,
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
