@@ -234,6 +234,7 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
         body: JSON.stringify({
           userId: user.id,
           campaignName: data.campaignName,
+          existingCampaignId: data.existingCampaignId, // Include existingCampaignId
           promptId: data.promptId,
           phoneNumbers: validNumbers,
           phoneNumbersWithNames: phoneNumbersWithNames,
@@ -317,6 +318,9 @@ export function useBatchCall(options: UseBatchCallOptions = {}) {
           text: error.message || 'An error occurred',
           confirmButtonText: 'OK',
           confirmButtonColor: '#ef4444',
+          customClass: {
+            container: 'swal-high-z-index'
+          }
         });
       }
 

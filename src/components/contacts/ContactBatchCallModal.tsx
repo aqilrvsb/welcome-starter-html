@@ -247,10 +247,9 @@ export function ContactBatchCallModal({
                                   <Select
                                     onValueChange={(value) => {
                                       field.onChange(value);
-                                      const selected = existingCampaigns?.find(c => c.id === value);
-                                      if (selected) {
-                                        form.setValue('campaignName', selected.campaign_name);
-                                      }
+                                      // Don't set campaignName - backend will use existingCampaignId
+                                      // Clear campaignName to ensure backend uses existingCampaignId
+                                      form.setValue('campaignName', '');
                                     }}
                                     value={field.value}
                                   >
