@@ -55,6 +55,7 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
   const [contactStats, setContactStats] = useState<Map<string, ContactStats>>(new Map());
   const [contactToDelete, setContactToDelete] = useState<string | null>(null);
   const [contactToEdit, setContactToEdit] = useState<Contact | null>(null);
+  const [randomCount, setRandomCount] = useState<string>("");
   const { toast } = useToast();
 
   const fetchContacts = async () => {
@@ -146,7 +147,7 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
       // Limit to maximum 10 contacts
       const contactsToSelect = filteredContacts.slice(0, 10).map(contact => contact.id);
       onSelectionChange(contactsToSelect);
-      
+
       if (filteredContacts.length > 10) {
         toast({
           title: "Selection limit reached",
@@ -155,6 +156,49 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
         });
       }
     }
+  };
+
+  const handleRandomSelection = () => {
+    const count = parseInt(randomCount);
+
+    if (isNaN(count) || count <= 0) {
+      toast({
+        title: "Invalid number",
+        description: "Please enter a valid number greater than 0.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (count > 10) {
+      toast({
+        title: "Selection limit",
+        description: "Maximum 10 contacts allowed for batch calls.",
+        variant: "default",
+      });
+      return;
+    }
+
+    if (count > filteredContacts.length) {
+      toast({
+        title: "Not enough contacts",
+        description: `You only have ${filteredContacts.length} contacts available.`,
+        variant: "default",
+      });
+      return;
+    }
+
+    // Randomly shuffle and select N contacts
+    const shuffled = [...filteredContacts].sort(() => 0.5 - Math.random());
+    const selected = shuffled.slice(0, count).map(contact => contact.id);
+    onSelectionChange(selected);
+
+    toast({
+      title: "Random selection complete",
+      description: `${count} contact${count > 1 ? 's' : ''} randomly selected.`,
+    });
+
+    setRandomCount(""); // Clear input after selection
   };
 
   const handleSelectContact = (contactId: string) => {
@@ -325,13 +369,33 @@ export function ContactList({ userId, selectedContacts, onSelectionChange, refre
                 </SelectContent>
               </Select>
               {filteredContacts.length > 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSelectAll}
-                >
-                  {selectedContacts.length === filteredContacts.length ? "Unselect All" : "Select All"}
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSelectAll}
+                  >
+                    {selectedContacts.length === filteredContacts.length ? "Unselect All" : "Select All"}
+                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      max="10"
+                      placeholder="Count"
+                      value={randomCount}
+                      onChange={(e) => setRandomCount(e.target.value)}
+                      className="w-20 h-8"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRandomSelection}
+                    >
+                      Random Select
+                    </Button>
+                  </div>
+                </>
               )}
             </div>
           </div>
