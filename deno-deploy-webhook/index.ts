@@ -13,102 +13,6 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4';
 
-// FreeSWITCH ESL Client (copied from shared module)
-class FreeSwitchESLClient {
-  private host: string;
-  private port: number;
-  private password: string;
-
-  constructor(host: string, port: number, password: string) {
-    this.host = host;
-    this.port = port;
-    this.password = password;
-  }
-
-  async originateCall(params: {
-    phoneNumber: string;
-    aiHandlerUrl: string;
-    callerId?: string;
-    variables?: Record<string, string>;
-  }): Promise<{ success: boolean; callId?: string; error?: string }> {
-    const { phoneNumber, aiHandlerUrl, callerId, variables = {} } = params;
-    const cleanNumber = phoneNumber.replace(/\D/g, '');
-
-    try {
-      const conn = await Deno.connect({ hostname: this.host, port: this.port });
-      console.log('✅ Connected to FreeSWITCH ESL');
-
-      await this.readResponse(conn);
-      await this.sendCommand(conn, `auth ${this.password}`);
-      const authResponse = await this.readResponse(conn);
-
-      if (!authResponse.includes('+OK')) {
-        throw new Error('ESL authentication failed');
-      }
-
-      console.log('✅ ESL authenticated');
-
-      const channelVars = {
-        audio_fork_enable: 'true',
-        audio_fork_url: aiHandlerUrl,
-        audio_fork_sample_rate: '8000',
-        audio_fork_channels: '1',
-        ...variables,
-        effective_caller_id_name: callerId || 'AI Call',
-        effective_caller_id_number: cleanNumber,
-      };
-
-      const varString = Object.entries(channelVars)
-        .map(([key, value]) => `${key}='${value}'`)
-        .join(',');
-
-      const originateCmd = `api originate {${varString}}sofia/gateway/AlienVOIP/${cleanNumber} &bridge(user/999)`;
-      console.log('📞 Originating call:', originateCmd);
-
-      await this.sendCommand(conn, originateCmd);
-      const response = await this.readResponse(conn);
-      conn.close();
-
-      if (response.includes('+OK')) {
-        const uuidMatch = response.match(/\+OK (.+)/);
-        const callId = uuidMatch ? uuidMatch[1].trim() : 'unknown';
-        console.log('✅ Call originated successfully:', callId);
-        return { success: true, callId };
-      } else {
-        console.error('❌ Call origination failed:', response);
-        return { success: false, error: response };
-      }
-    } catch (error: any) {
-      console.error('❌ ESL error:', error);
-      return { success: false, error: error.message || 'Unknown error' };
-    }
-  }
-
-  private async sendCommand(conn: Deno.Conn, command: string): Promise<void> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(command + '\n\n');
-    await conn.write(data);
-  }
-
-  private async readResponse(conn: Deno.Conn): Promise<string> {
-    const decoder = new TextDecoder();
-    const buffer = new Uint8Array(4096);
-    let response = '';
-
-    while (true) {
-      const bytesRead = await conn.read(buffer) || 0;
-      if (bytesRead === 0) break;
-
-      const chunk = decoder.decode(buffer.subarray(0, bytesRead));
-      response += chunk;
-
-      if (response.includes('\n\n')) break;
-    }
-
-    return response;
-  }
-}
-
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -292,61 +196,45 @@ serve(async (req) => {
 
       console.log(`✅ Prompt found: ${prompt.id} (${promptName})`);
 
-      // Initiate call directly via FreeSWITCH ESL
-      console.log(`📞 Initiating call to ${cleanedPhone} via FreeSWITCH + AlienVOIP`);
+      // Initiate call via existing batch-call Deno Deploy endpoint
+      console.log(`📞 Initiating call to ${cleanedPhone} via batch-call endpoint`);
 
       try {
-        // Create FreeSWITCH ESL client
-        const freeswitchHost = Deno.env.get('FREESWITCH_HOST') || '68.183.177.218';
-        const freeswitchPort = parseInt(Deno.env.get('FREESWITCH_ESL_PORT') || '8021');
-        const freeswitchPassword = Deno.env.get('FREESWITCH_ESL_PASSWORD') || 'ClueCon';
+        const BATCH_CALL_URL = 'https://sifucall.deno.dev/batch-call';
 
-        const eslClient = new FreeSwitchESLClient(freeswitchHost, freeswitchPort, freeswitchPassword);
+        const batchCallPayload = {
+          userId: webhook.user_id,
+          campaignId: null, // No campaign, will go directly to call_logs
+          promptId: prompt.id,
+          phoneNumbers: [cleanedPhone],
+          phoneNumbersWithNames: [{
+            phone_number: cleanedPhone,
+            customer_name: payload.name
+          }],
+          retryEnabled: false,
+        };
 
-        // Get AI call handler URL
-        const aiHandlerUrl = Deno.env.get('AI_HANDLER_URL') || `${Deno.env.get('SUPABASE_URL')}/functions/v1/ai-call-handler-freeswitch`;
+        console.log('🚀 Calling batch-call endpoint:', batchCallPayload);
 
-        // Originate call with metadata
-        const callResult = await eslClient.originateCall({
-          phoneNumber: cleanedPhone,
-          aiHandlerUrl: aiHandlerUrl,
-          callerId: `AI Call <${cleanedPhone}>`,
-          variables: {
-            user_id: webhook.user_id,
-            prompt_id: prompt.id,
-            customer_name: payload.name,
-            contact_id: contact.id,
-            webhook_id: webhook.id,
-          }
+        const batchCallResponse = await fetch(BATCH_CALL_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(batchCallPayload),
         });
 
-        if (!callResult.success) {
-          throw new Error(callResult.error || 'Failed to originate call via FreeSWITCH');
+        if (!batchCallResponse.ok) {
+          const errorData = await batchCallResponse.json();
+          throw new Error(errorData.error || 'Batch call failed');
         }
 
-        console.log(`✅ Call initiated successfully via FreeSWITCH:`, callResult.callId);
+        const batchCallResult = await batchCallResponse.json();
 
-        // Create call log entry
-        const { data: callLog, error: callLogError } = await supabaseAdmin
-          .from('call_logs')
-          .insert({
-            user_id: webhook.user_id,
-            contact_id: contact.id,
-            prompt_id: prompt.id,
-            call_id: callResult.callId || `webhook-${Date.now()}`,
-            status: 'initiated',
-            phone_number: cleanedPhone,
-            customer_name: payload.name,
-          })
-          .select()
-          .single();
+        console.log(`✅ Call initiated successfully:`, batchCallResult);
 
-        if (callLogError) {
-          console.error('⚠️ Failed to create call log:', callLogError);
-        } else {
-          callId = callLog.id;
-          console.log(`✅ Call log created:`, callId);
-        }
+        // Get call ID from the response if available
+        callId = batchCallResult.campaignId || null;
 
       } catch (callError: any) {
         console.error('❌ Failed to initiate call:', callError);
