@@ -196,8 +196,8 @@ serve(async (req) => {
 
       console.log(`✅ Prompt found: ${prompt.id} (${promptName})`);
 
-      // Determine campaign name
-      const campaignName = payload.campaign_name || webhook.default_campaign_name || `Webhook: ${webhook.webhook_name}`;
+      // Generate a unique call_id for this call
+      const callIdGenerated = `webhook-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
       // Create call log entry (call will be initiated by separate service)
       const { data: callLog, error: callError } = await supabaseAdmin
@@ -206,11 +206,10 @@ serve(async (req) => {
           user_id: webhook.user_id,
           contact_id: contact.id,
           prompt_id: prompt.id,
-          campaign_name: campaignName,
-          direction: 'outbound',
-          call_status: 'queued',
+          call_id: callIdGenerated,
+          status: 'queued',
           phone_number: cleanedPhone,
-          created_at: new Date().toISOString(),
+          customer_name: payload.name,
         })
         .select()
         .single();
