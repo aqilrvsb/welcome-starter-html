@@ -4,7 +4,7 @@ import { useCustomAuth } from '@/contexts/CustomAuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Phone, Calendar, Clock, Play, FileText, DollarSign, ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
+import { Phone, Calendar, Clock, Play, FileText, DollarSign, ChevronUp, ChevronDown, Trash2, Info } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
