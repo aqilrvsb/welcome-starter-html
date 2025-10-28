@@ -304,9 +304,12 @@ export function CallLogsTable({ campaignId }: CallLogsTableProps = {}) {
   const filteredLogs = callLogs?.filter(log => {
     const searchLower = filters.search.toLowerCase();
     const customerName = (log.customer_name || (log as any).contacts?.name || '').toLowerCase();
+    const callerNumber = (log.caller_number || '').toLowerCase();
+    const promptName = (getPromptName(log) || '').toLowerCase();
+
     const matchesSearch = (
-      log.caller_number.toLowerCase().includes(searchLower) ||
-      getPromptName(log).toLowerCase().includes(searchLower) ||
+      callerNumber.includes(searchLower) ||
+      promptName.includes(searchLower) ||
       customerName.includes(searchLower)
     );
 
