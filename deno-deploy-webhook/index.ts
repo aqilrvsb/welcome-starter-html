@@ -214,7 +214,7 @@ serve(async (req) => {
           retryEnabled: false,
         };
 
-        console.log('🚀 Calling batch-call endpoint:', batchCallPayload);
+        console.log('🚀 Calling batch-call endpoint with payload:', JSON.stringify(batchCallPayload, null, 2));
 
         const batchCallResponse = await fetch(BATCH_CALL_URL, {
           method: 'POST',
@@ -224,10 +224,25 @@ serve(async (req) => {
           body: JSON.stringify(batchCallPayload),
         });
 
+        console.log(`📡 Batch-call response status: ${batchCallResponse.status}`);
+
         if (!batchCallResponse.ok) {
           const errorText = await batchCallResponse.text();
           console.error(`❌ Batch call failed (${batchCallResponse.status}):`, errorText);
-          throw new Error(`Batch call failed: ${errorText}`);
+          console.error(`❌ Request payload was:`, JSON.stringify(batchCallPayload, null, 2));
+          console.error(`❌ Response headers:`, JSON.stringify(Object.fromEntries(batchCallResponse.headers.entries()), null, 2));
+
+          // Parse error response if JSON
+          let errorDetails = errorText;
+          try {
+            const errorJson = JSON.parse(errorText);
+            errorDetails = errorJson.error || errorText;
+            console.error(`❌ Parsed error:`, errorDetails);
+          } catch {
+            // Not JSON, use as-is
+          }
+
+          throw new Error(`Batch call failed (${batchCallResponse.status}): ${errorDetails}`);
         }
 
         const batchCallResult = await batchCallResponse.json();
