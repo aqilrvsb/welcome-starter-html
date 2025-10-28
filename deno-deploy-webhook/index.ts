@@ -120,40 +120,71 @@ serve(async (req) => {
 
     console.log(`📞 Processing: ${payload.name} - ${cleanedPhone}`);
 
-    // Create contact (lead)
-    const { data: contact, error: contactError } = await supabaseAdmin
+    // Check if phone number already exists for this user
+    const { data: existingContact } = await supabaseAdmin
       .from('contacts')
-      .insert({
-        user_id: webhook.user_id,
-        name: payload.name,
-        phone_number: cleanedPhone,
-        product: payload.product || null,
-        info: `webhook:${webhook.webhook_name}`,
-      })
-      .select()
-      .single();
+      .select('*')
+      .eq('user_id', webhook.user_id)
+      .eq('phone_number', cleanedPhone)
+      .maybeSingle();
 
-    if (contactError) {
-      console.error('❌ Failed to create contact:', contactError);
-      await logWebhookRequest(webhook.id, payload, 'error', null, null, `Failed to create contact: ${contactError.message}`, Date.now() - startTime, ipAddress, userAgent);
-      await updateWebhookFailedStats(webhook);
+    let contact;
+    let isNewContact = false;
 
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Failed to create contact',
-          details: contactError.message
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (existingContact) {
+      console.log(`⚠️ Phone number already exists: ${existingContact.id} - ${existingContact.name}`);
+      contact = existingContact;
+
+      // Update contact info to note webhook attempt
+      await supabaseAdmin
+        .from('contacts')
+        .update({
+          info: `${existingContact.info || ''} | webhook duplicate: ${webhook.webhook_name} at ${new Date().toISOString()}`.trim(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingContact.id);
+
+    } else {
+      // Create new contact (lead)
+      const { data: newContact, error: contactError } = await supabaseAdmin
+        .from('contacts')
+        .insert({
+          user_id: webhook.user_id,
+          name: payload.name,
+          phone_number: cleanedPhone,
+          product: payload.product || null,
+          info: `webhook:${webhook.webhook_name}`,
+        })
+        .select()
+        .single();
+
+      if (contactError) {
+        console.error('❌ Failed to create contact:', contactError);
+        await logWebhookRequest(webhook.id, payload, 'error', null, null, `Failed to create contact: ${contactError.message}`, Date.now() - startTime, ipAddress, userAgent);
+        await updateWebhookFailedStats(webhook);
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Failed to create contact',
+            details: contactError.message
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      contact = newContact;
+      isNewContact = true;
+      console.log(`✅ Contact created: ${contact.id} - ${contact.name}`);
     }
-
-    console.log(`✅ Contact created: ${contact.id} - ${contact.name}`);
 
     let callId: string | null = null;
 
-    // If webhook type is lead_and_call, initiate call
+    // If webhook type is lead_and_call, initiate call (only for NEW contacts)
     if (webhook.webhook_type === 'lead_and_call') {
+      if (!isNewContact) {
+        console.log(`⏭️ Skipping call for duplicate phone number: ${cleanedPhone}`);
+      } else {
       // Determine prompt to use
       const promptName = payload.prompt_name || webhook.default_prompt_name;
 
@@ -267,7 +298,8 @@ serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-    }
+      } // End of else block for isNewContact
+    } // End of lead_and_call check
 
     // Log successful webhook request
     await logWebhookRequest(webhook.id, payload, 'success', contact.id, callId, null, Date.now() - startTime, ipAddress, userAgent);
@@ -285,9 +317,12 @@ serve(async (req) => {
     // Return success response
     const response = {
       success: true,
-      message: webhook.webhook_type === 'lead_and_call'
-        ? 'Contact created and call initiated successfully'
-        : 'Contact created successfully',
+      message: isNewContact
+        ? (webhook.webhook_type === 'lead_and_call'
+            ? 'Contact created and call initiated successfully'
+            : 'Contact created successfully')
+        : 'Phone number already exists, contact skipped',
+      is_duplicate: !isNewContact,
       data: {
         contact_id: contact.id,
         name: contact.name,
