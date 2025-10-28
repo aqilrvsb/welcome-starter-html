@@ -88,13 +88,14 @@ export function CallLogsTable({ campaignId }: CallLogsTableProps = {}) {
 
       // Build query with filtering and sorting, joining with contacts, campaigns, and prompts
       // Note: prompts is now a direct relationship via prompt_id column
+      // Using left joins to handle missing relationships gracefully
       let query = supabase
         .from('call_logs')
         .select(`
           *,
           contacts(name, product),
           campaigns(campaign_name),
-          prompts!call_logs_prompt_id_fkey(prompt_name)
+          prompts(prompt_name)
         `)
         .eq('user_id', user.id);
 
@@ -121,8 +122,19 @@ export function CallLogsTable({ campaignId }: CallLogsTableProps = {}) {
       query = query.order(sortColumn, { ascending });
 
       const { data, error } = await query;
-      
-      if (error) throw error;
+
+      if (error) {
+        console.error('❌ Call logs query error:', error);
+        console.error('Error details:', {
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw error;
+      }
+
+      console.log('✅ Call logs loaded:', data?.length, 'records');
       return data as CallLog[];
     },
     enabled: !!user,
