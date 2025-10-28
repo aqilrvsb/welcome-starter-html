@@ -196,26 +196,43 @@ serve(async (req) => {
 
       console.log(`✅ Prompt found: ${prompt.id} (${promptName})`);
 
-      // Generate a unique call_id for this call
-      const callIdGenerated = `webhook-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+      // Initiate call via batch-call-v2 function
+      console.log(`📞 Initiating call to ${cleanedPhone} via batch-call-v2`);
 
-      // Create call log entry (call will be initiated by separate service)
-      const { data: callLog, error: callError } = await supabaseAdmin
-        .from('call_logs')
-        .insert({
-          user_id: webhook.user_id,
-          contact_id: contact.id,
-          prompt_id: prompt.id,
-          call_id: callIdGenerated,
-          status: 'queued',
-          phone_number: cleanedPhone,
-          customer_name: payload.name,
-        })
-        .select()
-        .single();
+      try {
+        const batchCallResponse = await fetch(
+          `${Deno.env.get('SUPABASE_URL')}/functions/v1/batch-call-v2`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            },
+            body: JSON.stringify({
+              userId: webhook.user_id,
+              campaignName: `Webhook: ${webhook.webhook_name}`,
+              promptId: prompt.id,
+              phoneNumbers: [cleanedPhone],
+              phoneNumbersWithNames: [{ phone: cleanedPhone, name: payload.name }],
+              customerName: payload.name,
+              retryEnabled: false,
+            }),
+          }
+        );
 
-      if (callError) {
-        console.error('❌ Failed to create call log:', callError);
+        const batchCallResult = await batchCallResponse.json();
+
+        if (!batchCallResponse.ok || !batchCallResult.success) {
+          throw new Error(batchCallResult.error || 'Failed to initiate call via batch-call-v2');
+        }
+
+        console.log(`✅ Call initiated successfully via batch-call-v2:`, batchCallResult);
+
+        // Get the call log ID from the result
+        callId = batchCallResult.campaign?.id || null;
+
+      } catch (callError: any) {
+        console.error('❌ Failed to initiate call:', callError);
         await logWebhookRequest(webhook.id, payload, 'error', contact.id, null, `Failed to initiate call: ${callError.message}`, Date.now() - startTime, ipAddress, userAgent);
         await updateWebhookFailedStats(webhook);
 
@@ -229,9 +246,6 @@ serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-
-      callId = callLog.id;
-      console.log(`✅ Call queued: ${callId}`);
     }
 
     // Log successful webhook request
