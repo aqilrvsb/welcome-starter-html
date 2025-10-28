@@ -196,6 +196,47 @@ serve(async (req) => {
 
       console.log(`✅ Prompt found: ${prompt.id} (${promptName})`);
 
+      // Check if user has phone_config, create default if not
+      const { data: existingPhoneConfig } = await supabaseAdmin
+        .from('phone_config')
+        .select('id')
+        .eq('user_id', webhook.user_id)
+        .single();
+
+      if (!existingPhoneConfig) {
+        console.log(`⚙️ No phone_config found for user ${webhook.user_id}, creating default FreeSWITCH config`);
+
+        // Create default phone_config with platform FreeSWITCH/AlienVOIP settings
+        const { error: configError } = await supabaseAdmin
+          .from('phone_config')
+          .insert({
+            user_id: webhook.user_id,
+            freeswitch_url: Deno.env.get('DEFAULT_FREESWITCH_URL') || 'http://68.183.177.218',
+            sip_username: Deno.env.get('DEFAULT_SIP_USERNAME') || '',
+            sip_password: Deno.env.get('DEFAULT_SIP_PASSWORD') || '',
+            sip_proxy_primary: 'sip1.alienvoip.com',
+            sip_proxy_secondary: 'sip3.alienvoip.com',
+            sip_codec: 'ulaw',
+          });
+
+        if (configError) {
+          console.error('❌ Failed to create default phone_config:', configError);
+          await logWebhookRequest(webhook.id, payload, 'error', contact.id, null, `Phone config not found and failed to create default: ${configError.message}`, Date.now() - startTime, ipAddress, userAgent);
+          await updateWebhookFailedStats(webhook);
+
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: 'Phone configuration not found. Please configure your FreeSWITCH settings in Settings > Phone Config.',
+              contact_id: contact.id
+            }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+
+        console.log(`✅ Default phone_config created for user ${webhook.user_id}`);
+      }
+
       // Initiate call via batch-call-v2 function
       console.log(`📞 Initiating call to ${cleanedPhone} via batch-call-v2`);
 
