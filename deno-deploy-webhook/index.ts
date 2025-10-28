@@ -225,8 +225,9 @@ serve(async (req) => {
         });
 
         if (!batchCallResponse.ok) {
-          const errorData = await batchCallResponse.json();
-          throw new Error(errorData.error || 'Batch call failed');
+          const errorText = await batchCallResponse.text();
+          console.error(`❌ Batch call failed (${batchCallResponse.status}):`, errorText);
+          throw new Error(`Batch call failed: ${errorText}`);
         }
 
         const batchCallResult = await batchCallResponse.json();
