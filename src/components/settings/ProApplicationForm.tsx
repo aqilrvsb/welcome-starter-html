@@ -86,15 +86,18 @@ export function ProApplicationForm() {
     if (!user) return;
 
     try {
+      // Check if user has SIP credentials in phone_config
       const { data, error } = await supabase
-        .from('users')
-        .select('sip_configured')
-        .eq('id', user.id)
-        .single();
+        .from('phone_config')
+        .select('sip_username, sip_password')
+        .eq('user_id', user.id)
+        .maybeSingle();
 
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') throw error;
 
-      setSipConfigured(data?.sip_configured || false);
+      // User is configured if they have both username and password
+      const hasCredentials = data && data.sip_username && data.sip_password;
+      setSipConfigured(!!hasCredentials);
     } catch (error: any) {
       console.error('Error checking SIP configuration:', error);
     }

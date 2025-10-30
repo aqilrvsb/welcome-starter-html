@@ -428,7 +428,12 @@ export default function AdminUsers() {
                         </TableCell>
                         <TableCell>
                           <Select
-                            value={user.sip_configured ? 'configured' : 'not_configured'}
+                            value={(() => {
+                              // Auto-determine based on phone_config
+                              const config = phoneConfigs?.find(pc => pc.user_id === user.id);
+                              const hasCredentials = config && config.sip_username && config.sip_password;
+                              return hasCredentials ? 'configured' : 'not_configured';
+                            })()}
                             onValueChange={(value) => {
                               updateSipConfiguredMutation.mutate({
                                 userId: user.id,
