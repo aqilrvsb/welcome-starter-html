@@ -22,8 +22,8 @@ const CHIP_API_KEY = Deno.env.get('CHIP_API_KEY');
 const CHIP_BASE_URL = 'https://gate.chip-in.asia/api/v1';
 const CHIP_BRAND_ID = Deno.env.get('CHIP_BRAND_ID');
 
-// 🔍 DEBUG: Log environment variables on startup
-console.log('🔧 Environment check:');
+// 🔍 DEBUG: Log environment variables on startup (v2)
+console.log('🔧 Environment check (redeployed):');
 console.log('  CHIP_API_KEY:', CHIP_API_KEY ? '✅ Set (' + CHIP_API_KEY.substring(0, 20) + '...)' : '❌ NOT SET');
 console.log('  CHIP_BRAND_ID:', CHIP_BRAND_ID ? '✅ Set (' + CHIP_BRAND_ID + ')' : '❌ NOT SET');
 

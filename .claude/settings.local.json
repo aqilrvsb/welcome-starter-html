@@ -43,7 +43,8 @@
       "Bash(cat:*)",
       "Bash(git rm:*)",
       "Bash(java -version:*)",
-      "Bash(git remote set-url:*)"
+      "Bash(git remote set-url:*)",
+      "Bash(git branch:*)"
     ],
     "deny": [],
     "ask": []
