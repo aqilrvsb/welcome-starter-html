@@ -27,6 +27,7 @@ import WebhooksPage from './pages/dashboard/Webhooks';
 import Settings from "./pages/Settings";
 import Whatsapp from "./pages/Whatsapp";
 import CreditsTopup from "./pages/CreditsTopup";
+import Invoice from "./pages/Invoice";
 import NotFound from "./pages/NotFound";
 import ThankYou from "./pages/ThankYou";
 import TwilioTutorial from "./pages/TwilioTutorial";
@@ -212,6 +213,14 @@ function App() {
                         element={
                           <CustomProtectedRoute>
                             <CreditsTopup />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/invoice"
+                        element={
+                          <CustomProtectedRoute>
+                            <Invoice />
                           </CustomProtectedRoute>
                         }
                       />

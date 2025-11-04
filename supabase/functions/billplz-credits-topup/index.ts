@@ -225,8 +225,9 @@ async function handleWebhook(req: Request, signature: string): Promise<Response>
     const purchaseId = webhookData.id;
     const status = webhookData.status;
     const eventType = webhookData.event_type || 'purchase.updated';
+    const transactionId = webhookData.transaction_data?.id || webhookData.transaction?.id || purchaseId;
 
-    console.log(`📋 Purchase ${purchaseId} - Status: ${status} - Event: ${eventType}`);
+    console.log(`📋 Purchase ${purchaseId} - Status: ${status} - Event: ${eventType} - Transaction: ${transactionId}`);
 
     if (!purchaseId) {
       console.error('❌ Missing purchase ID in webhook');
@@ -284,6 +285,7 @@ async function handleWebhook(req: Request, signature: string): Promise<Response>
       .update({
         status: newStatus,
         paid_at,
+        chip_transaction_id: transactionId,
         updated_at: new Date().toISOString(),
         metadata: {
           ...payment.metadata,

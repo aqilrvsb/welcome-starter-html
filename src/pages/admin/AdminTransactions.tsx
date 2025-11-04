@@ -19,7 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Loader2, DollarSign, TrendingUp, XCircle, CheckCircle2, FileText, Search, Calendar } from 'lucide-react';
+import { Loader2, DollarSign, TrendingUp, XCircle, CheckCircle2, FileText, Search, Calendar, Check, X, Copy } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
@@ -30,6 +30,8 @@ interface Payment {
   amount: number;
   status: string;
   payment_method: string | null;
+  chip_purchase_id: string | null;
+  chip_transaction_id: string | null;
   created_at: string;
   paid_at: string | null;
   users: {
@@ -120,6 +122,74 @@ export default function AdminTransactions() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleMarkAsPaid = async (paymentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('payments')
+        .update({
+          status: 'paid',
+          paid_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', paymentId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Payment marked as paid successfully',
+      });
+
+      // Reload data
+      loadAllData();
+    } catch (error: any) {
+      console.error('Error marking payment as paid:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update payment status',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleMarkAsFailed = async (paymentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('payments')
+        .update({
+          status: 'failed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', paymentId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: 'Payment marked as failed successfully',
+      });
+
+      // Reload data
+      loadAllData();
+    } catch (error: any) {
+      console.error('Error marking payment as failed:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update payment status',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({
+      title: 'Copied',
+      description: 'Transaction ID copied to clipboard',
+      duration: 2000,
+    });
   };
 
   const calculateSummary = () => {
@@ -349,6 +419,7 @@ export default function AdminTransactions() {
                   <TableHead>Amount</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Payment Method</TableHead>
+                  <TableHead>Transaction ID</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Paid At</TableHead>
                   <TableHead>Actions</TableHead>
@@ -375,7 +446,35 @@ export default function AdminTransactions() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {payment.payment_method || 'N/A'}
+                      {payment.chip_purchase_id ? (
+                        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">
+                          CHIP
+                        </Badge>
+                      ) : payment.payment_method ? (
+                        payment.payment_method
+                      ) : (
+                        'N/A'
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {payment.chip_transaction_id ? (
+                        <div className="flex items-center gap-1">
+                          <code className="text-xs bg-muted px-2 py-1 rounded">
+                            {payment.chip_transaction_id.substring(0, 12)}...
+                          </code>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0"
+                            onClick={() => copyToClipboard(payment.chip_transaction_id!)}
+                            title="Copy Transaction ID"
+                          >
+                            <Copy className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {format(parseISO(payment.created_at), 'MMM dd, yyyy HH:mm')}
@@ -386,15 +485,44 @@ export default function AdminTransactions() {
                         : '-'}
                     </TableCell>
                     <TableCell>
-                      {payment.status === 'paid' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => window.open(`/invoices?payment_id=${payment.id}`, '_blank')}
-                        >
-                          <FileText className="h-4 w-4" />
-                        </Button>
-                      )}
+                      <div className="flex items-center gap-1">
+                        {/* Invoice Button for paid payments */}
+                        {payment.status === 'paid' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            onClick={() => window.open(`/invoice?payment_id=${payment.id}`, '_blank')}
+                            title="View Invoice"
+                          >
+                            <FileText className="h-4 w-4" />
+                          </Button>
+                        )}
+
+                        {/* Manual Action Buttons for pending payments */}
+                        {payment.status === 'pending' && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                              onClick={() => handleMarkAsPaid(payment.id)}
+                              title="Mark as Paid"
+                            >
+                              <Check className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              onClick={() => handleMarkAsFailed(payment.id)}
+                              title="Mark as Failed"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

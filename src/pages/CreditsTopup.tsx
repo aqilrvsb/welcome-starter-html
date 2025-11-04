@@ -73,6 +73,40 @@ export default function CreditsTopup() {
     }
   }, [user]);
 
+  // Handle success/failed redirects from CHIP payment
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get('status');
+
+    if (status === 'success') {
+      // Show success message
+      toast({
+        title: 'Payment Successful! 🎉',
+        description: 'Your credits have been added to your account.',
+        duration: 5000,
+      });
+
+      // Reload balance to show updated credits
+      if (user) {
+        loadCreditsInfo();
+      }
+
+      // Clean URL (remove ?status=success)
+      window.history.replaceState({}, '', '/credits-topup');
+    } else if (status === 'failed') {
+      // Show error message
+      toast({
+        title: 'Payment Failed',
+        description: 'Your payment was not successful. Please try again.',
+        variant: 'destructive',
+        duration: 5000,
+      });
+
+      // Clean URL
+      window.history.replaceState({}, '', '/credits-topup');
+    }
+  }, [user, toast]);
+
   const loadCreditsInfo = async () => {
     if (!user) return;
 
@@ -571,8 +605,9 @@ export default function CreditsTopup() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    onClick={() => window.open(`/invoices?payment_id=${transaction.id}`, '_blank')}
+                                    onClick={() => window.open(`/invoice?payment_id=${transaction.id}`, '_blank')}
                                     className="h-8 w-8 p-0"
+                                    title="View Invoice"
                                   >
                                     <FileText className="h-4 w-4" />
                                   </Button>
