@@ -146,46 +146,58 @@ async function getSipConfig(userId: string) {
 
 /**
  * Validate user balance before making calls
- * Uses credits_balance (RM) and converts to minutes at RM 0.15/min
  */
 async function validateBalance(userId: string, estimatedMinutes: number) {
   const { data: user, error } = await supabaseAdmin
     .from('users')
-    .select('account_type, credits_balance')
+    .select('account_type, trial_balance_minutes, pro_balance_minutes')
     .eq('id', userId)
     .single();
 
   if (error) throw new Error('Failed to fetch user balance');
 
   const accountType = user?.account_type || 'trial';
-  const creditsBalanceRM = user?.credits_balance || 0;
 
-  // Convert RM to minutes (RM 0.15 per minute)
-  const PRICE_PER_MINUTE = 0.15;
-  const balanceMinutes = creditsBalanceRM / PRICE_PER_MINUTE;
+  if (accountType === 'trial') {
+    const trialBalance = user?.trial_balance_minutes || 0;
 
-  if (creditsBalanceRM <= 0) {
-    throw new Error('Insufficient credits: Balance is RM 0.00. Please top up credits.');
+    if (trialBalance <= 0) {
+      throw new Error('Insufficient credits: Trial balance is 0. Please switch to Pro Account or top up credits.');
+    }
+
+    if (trialBalance < estimatedMinutes) {
+      throw new Error(
+        `Insufficient credits: You have ${trialBalance.toFixed(1)} trial minutes but need ~${estimatedMinutes} min. Switch to Pro or top up.`
+      );
+    }
+
+    console.log(`✅ Trial balance: ${trialBalance.toFixed(1)} min remaining`);
+    return { accountType: 'trial', balanceMinutes: trialBalance };
+  } else {
+    const proBalance = user?.pro_balance_minutes || 0;
+
+    if (proBalance <= 0) {
+      throw new Error('Insufficient credits: Pro balance is 0 minutes. Please top up credits.');
+    }
+
+    if (proBalance < estimatedMinutes) {
+      throw new Error(
+        `Insufficient credits: You have ${proBalance.toFixed(1)} min but need ~${estimatedMinutes} min. Please top up.`
+      );
+    }
+
+    console.log(`✅ Pro balance: ${proBalance.toFixed(1)} min`);
+    return { accountType: 'pro', balanceMinutes: proBalance };
   }
-
-  if (balanceMinutes < estimatedMinutes) {
-    throw new Error(
-      `Insufficient credits: You have RM ${creditsBalanceRM.toFixed(2)} (${balanceMinutes.toFixed(1)} min) but need ~${estimatedMinutes} min (~RM ${(estimatedMinutes * PRICE_PER_MINUTE).toFixed(2)}). Please top up.`
-    );
-  }
-
-  console.log(`✅ Credits balance: RM ${creditsBalanceRM.toFixed(2)} (${balanceMinutes.toFixed(1)} min remaining)`);
-  return { accountType, balanceMinutes };
 }
 
 /**
  * Deduct credits after call completes
- * Deducts from credits_balance (RM) at RM 0.15 per minute
  */
 async function deductCreditsAfterCall(userId: string, callDurationMinutes: number) {
   const { data: user, error: userError } = await supabaseAdmin
     .from('users')
-    .select('credits_balance, total_minutes_used')
+    .select('account_type, trial_balance_minutes, pro_balance_minutes, total_minutes_used')
     .eq('id', userId)
     .single();
 
@@ -194,29 +206,48 @@ async function deductCreditsAfterCall(userId: string, callDurationMinutes: numbe
     return;
   }
 
-  // Convert minutes to RM (RM 0.15 per minute)
-  const PRICE_PER_MINUTE = 0.15;
-  const costRM = callDurationMinutes * PRICE_PER_MINUTE;
+  const accountType = user?.account_type || 'trial';
 
-  const currentBalanceRM = user.credits_balance || 0;
-  const newBalanceRM = Math.max(0, currentBalanceRM - costRM); // Don't go negative
-  const newTotalUsed = (user.total_minutes_used || 0) + callDurationMinutes;
+  if (accountType === 'trial') {
+    const currentBalance = user.trial_balance_minutes || 0;
+    const newBalance = Math.max(0, currentBalance - callDurationMinutes); // Don't go negative
+    const newTotalUsed = (user.total_minutes_used || 0) + callDurationMinutes;
 
-  console.log(`💳 Deducting ${callDurationMinutes.toFixed(2)} min (RM ${costRM.toFixed(2)}) from RM ${currentBalanceRM.toFixed(2)}`);
+    console.log(`💳 [TRIAL] Deducting ${callDurationMinutes.toFixed(2)} min from ${currentBalance.toFixed(2)} min`);
 
-  const { error: updateError } = await supabaseAdmin
-    .from('users')
-    .update({
-      credits_balance: newBalanceRM,
-      total_minutes_used: newTotalUsed,
-    })
-    .eq('id', userId);
+    const { error: updateError } = await supabaseAdmin
+      .from('users')
+      .update({
+        trial_balance_minutes: newBalance,
+        total_minutes_used: newTotalUsed,
+      })
+      .eq('id', userId);
 
-  if (updateError) {
-    console.error('❌ Failed to update credits balance:', updateError);
+    if (updateError) {
+      console.error('❌ Failed to update trial balance:', updateError);
+    } else {
+      console.log(`✅ Trial: ${newBalance.toFixed(2)} min remaining (${callDurationMinutes.toFixed(2)} min deducted)`);
+    }
   } else {
-    const remainingMinutes = newBalanceRM / PRICE_PER_MINUTE;
-    console.log(`✅ Balance updated: RM ${newBalanceRM.toFixed(2)} (${remainingMinutes.toFixed(1)} min remaining)`);
+    const currentBalance = user.pro_balance_minutes || 0;
+    const newBalance = Math.max(0, currentBalance - callDurationMinutes); // Don't go negative
+    const newTotalUsed = (user.total_minutes_used || 0) + callDurationMinutes;
+
+    console.log(`💳 [PRO] Deducting ${callDurationMinutes.toFixed(2)} min from ${currentBalance.toFixed(2)} min`);
+
+    const { error: updateError } = await supabaseAdmin
+      .from('users')
+      .update({
+        pro_balance_minutes: newBalance,
+        total_minutes_used: newTotalUsed,
+      })
+      .eq('id', userId);
+
+    if (updateError) {
+      console.error('❌ Failed to update pro balance:', updateError);
+    } else {
+      console.log(`✅ Pro: ${newBalance.toFixed(2)} min remaining (${callDurationMinutes.toFixed(2)} min deducted)`);
+    }
   }
 }
 
