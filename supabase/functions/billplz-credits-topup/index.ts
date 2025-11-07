@@ -32,6 +32,14 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Handle GET requests (health checks from CHIP)
+  if (req.method === 'GET') {
+    return new Response(JSON.stringify({ status: 'ok', message: 'CHIP webhook endpoint ready' }), {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    });
+  }
+
   try {
     const contentType = req.headers.get('content-type') || '';
 

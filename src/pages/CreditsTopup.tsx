@@ -487,7 +487,7 @@ export default function CreditsTopup() {
               ) : (
                 <>
                   <CreditCard className="w-4 h-4 mr-2" />
-                  Pay with CHIP
+                  Click Payment
                 </>
               )}
             </Button>
