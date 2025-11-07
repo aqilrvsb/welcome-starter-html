@@ -65,7 +65,7 @@ export default function CreditsTopup() {
   const [topupAmount, setTopupAmount] = useState<number>(20); // Default RM20
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [allTransactions, setAllTransactions] = useState<Transaction[]>([]); // Store all transactions
-  const [filterDate, setFilterDate] = useState<string>(format(new Date(), 'yyyy-MM-dd')); // Default to today
+  const [filterDate, setFilterDate] = useState<string>(''); // Default to all transactions (empty string)
 
   const predefinedAmounts = [10, 20, 50, 100];
 
