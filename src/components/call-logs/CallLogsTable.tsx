@@ -585,7 +585,9 @@ export function CallLogsTable({ campaignId }: CallLogsTableProps = {}) {
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle>Call Logs</CardTitle>
-            <RecordingHelpDialog />
+            <RecordingHelpDialog
+              latestRecordingUrl={filteredLogs.find(log => log.recording_url || log.metadata?.recording_url)?.recording_url || filteredLogs.find(log => log.recording_url || log.metadata?.recording_url)?.metadata?.recording_url}
+            />
           </div>
         </CardHeader>
         <CardContent>

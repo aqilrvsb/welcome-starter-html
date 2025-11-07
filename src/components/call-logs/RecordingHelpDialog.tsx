@@ -2,7 +2,11 @@ import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
-export function RecordingHelpDialog() {
+interface RecordingHelpDialogProps {
+  latestRecordingUrl?: string;
+}
+
+export function RecordingHelpDialog({ latestRecordingUrl }: RecordingHelpDialogProps) {
   return (
     <Dialog>
       <DialogTrigger asChild>
@@ -36,25 +40,26 @@ export function RecordingHelpDialog() {
               <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
                 1
               </div>
-              <div>
-                <p className="font-medium mb-1">Click on any "Play" button to get the recording URL</p>
-                <p className="text-muted-foreground text-xs">The recording will fail to load - this is expected</p>
+              <div className="w-full">
+                <p className="font-medium mb-1">Click this recording URL to open it in a NEW TAB</p>
+                {latestRecordingUrl ? (
+                  <a
+                    href={latestRecordingUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block p-2 bg-blue-50 border border-blue-200 rounded text-blue-600 hover:bg-blue-100 text-xs break-all"
+                  >
+                    {latestRecordingUrl}
+                  </a>
+                ) : (
+                  <p className="text-muted-foreground text-xs">No recording URL available. Please make a call first.</p>
+                )}
               </div>
             </div>
 
             <div className="flex gap-3 p-3 bg-muted rounded-lg">
               <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
                 2
-              </div>
-              <div>
-                <p className="font-medium mb-1">Copy the recording URL and open it in a NEW TAB</p>
-                <p className="text-muted-foreground text-xs">Right-click the URL in browser console (F12) or check the error message</p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 p-3 bg-muted rounded-lg">
-              <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
-                3
               </div>
               <div>
                 <p className="font-medium mb-1">You'll see a security warning page</p>
@@ -64,7 +69,7 @@ export function RecordingHelpDialog() {
 
             <div className="flex gap-3 p-3 bg-muted rounded-lg">
               <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
-                4
+                3
               </div>
               <div>
                 <p className="font-medium mb-1">Click "Advanced" or "Show Details"</p>
@@ -74,7 +79,7 @@ export function RecordingHelpDialog() {
 
             <div className="flex gap-3 p-3 bg-muted rounded-lg">
               <div className="flex-shrink-0 w-8 h-8 bg-primary text-primary-foreground rounded-full flex items-center justify-center font-bold">
-                5
+                4
               </div>
               <div>
                 <p className="font-medium mb-1">Click "Proceed" or "Accept the Risk and Continue"</p>
