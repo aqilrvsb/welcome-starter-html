@@ -346,25 +346,91 @@ async function handleWebhook(req: Request, signature: string): Promise<Response>
         });
       }
 
-      // Use the database function to add credits
-      const { error: creditsError } = await supabase.rpc('add_credits', {
-        p_user_id: payment.user_id,
-        p_amount: payment.amount,
-        p_payment_id: payment.id,
-        p_description: `Credits top-up - RM${payment.amount} via CHIP`
-      });
+      // Fetch dynamic pricing from system settings
+      const { data: pricingSetting, error: pricingError } = await supabase
+        .from('system_settings')
+        .select('setting_value')
+        .eq('setting_key', 'pricing_per_minute')
+        .single();
 
-      if (creditsError) {
-        console.error('❌ Error adding credits:', creditsError);
+      if (pricingError) {
+        console.error('❌ Error fetching pricing setting:', pricingError);
+        // Revert payment status to failed
+        await supabase
+          .from('payments')
+          .update({ status: 'failed' })
+          .eq('id', payment.id);
+        return new Response(JSON.stringify({ error: 'Error fetching pricing configuration' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      const PRICE_PER_MINUTE = parseFloat(pricingSetting.setting_value);
+      const minutesToAdd = payment.amount / PRICE_PER_MINUTE;
+
+      console.log(`💰 Converting RM${payment.amount} to ${minutesToAdd.toFixed(2)} minutes (@ RM${PRICE_PER_MINUTE}/min)`);
+
+      // Get current pro balance
+      const { data: userData, error: userFetchError } = await supabase
+        .from('users')
+        .select('pro_balance_minutes')
+        .eq('id', payment.user_id)
+        .single();
+
+      if (userFetchError) {
+        console.error('❌ Error fetching user balance:', userFetchError);
         // Revert payment status to failed since credits weren't added
         await supabase
           .from('payments')
           .update({ status: 'failed' })
           .eq('id', payment.id);
-        return new Response(JSON.stringify({ error: 'Error adding credits' }), {
+        return new Response(JSON.stringify({ error: 'Error fetching user balance' }), {
           status: 500,
           headers: { 'Content-Type': 'application/json' }
         });
+      }
+
+      const currentBalance = userData.pro_balance_minutes || 0;
+      const newBalance = currentBalance + minutesToAdd;
+
+      console.log(`💰 Adding ${minutesToAdd.toFixed(2)} minutes to pro balance: ${currentBalance.toFixed(2)} → ${newBalance.toFixed(2)}`);
+
+      // Update pro_balance_minutes
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ pro_balance_minutes: newBalance })
+        .eq('id', payment.user_id);
+
+      if (updateError) {
+        console.error('❌ Error updating pro balance:', updateError);
+        // Revert payment status to failed since credits weren't added
+        await supabase
+          .from('payments')
+          .update({ status: 'failed' })
+          .eq('id', payment.id);
+        return new Response(JSON.stringify({ error: 'Error updating pro balance' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      // Create a transaction record for tracking
+      const { error: txError } = await supabase
+        .from('credits_transactions')
+        .insert({
+          user_id: payment.user_id,
+          transaction_type: 'topup',
+          amount: minutesToAdd,
+          balance_before: currentBalance,
+          balance_after: newBalance,
+          description: `CHIP top-up - RM${payment.amount} (${minutesToAdd.toFixed(2)} minutes)`,
+          payment_id: payment.id
+        });
+
+      if (txError) {
+        console.error('⚠️ Error creating transaction record:', txError);
+        // Don't fail the whole operation if transaction record fails
       }
 
       console.log(`✅ Credits added successfully to user ${payment.user_id}`);
