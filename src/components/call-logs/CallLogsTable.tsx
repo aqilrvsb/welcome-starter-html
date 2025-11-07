@@ -15,6 +15,7 @@ import { AudioPlayerDialog } from '@/components/ui/audio-player-dialog';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { CallLogsFilters, CallLogsFilters as CallLogsFiltersType } from './CallLogsFilters';
 import { useToast } from '@/hooks/use-toast';
+import { RecordingHelpDialog } from './RecordingHelpDialog';
 
 interface CallLog {
   id: string;
@@ -582,7 +583,10 @@ export function CallLogsTable({ campaignId }: CallLogsTableProps = {}) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Call Logs</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Call Logs</CardTitle>
+            <RecordingHelpDialog />
+          </div>
         </CardHeader>
         <CardContent>
         {isLoading ? (

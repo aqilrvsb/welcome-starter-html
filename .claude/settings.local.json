@@ -46,7 +46,10 @@
       "Bash(git remote set-url:*)",
       "Bash(git branch:*)",
       "Bash(git clone:*)",
-      "Bash(git fetch:*)"
+      "Bash(git fetch:*)",
+      "Bash(nslookup:*)",
+      "Bash(dig:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []
