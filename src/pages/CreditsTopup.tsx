@@ -252,13 +252,14 @@ export default function CreditsTopup() {
 
       if (error) throw error;
 
-      // Open payment page in new tab
-      window.open(data.payment_url, '_blank');
+      console.log('Payment response:', data);
 
-      toast({
-        title: 'Redirecting to Payment',
-        description: 'Please complete your payment in the new window.',
-      });
+      // Open payment page in same window (to avoid popup blocker)
+      if (data && data.payment_url) {
+        window.location.href = data.payment_url;
+      } else {
+        throw new Error('No payment URL received from server');
+      }
 
     } catch (error: any) {
       console.error('Top-up error:', error);
