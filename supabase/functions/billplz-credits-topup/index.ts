@@ -229,18 +229,39 @@ async function handleWebhook(req: Request, signature: string): Promise<Response>
     console.log('🔔 CHIP Webhook received:', JSON.stringify(webhookData, null, 2));
     console.log('🔐 Signature:', signature);
 
-    // Extract purchase data
+    // Extract purchase data from webhook
     const purchaseId = webhookData.id;
-    const status = webhookData.status;
-    const eventType = webhookData.event_type || 'purchase.updated';
-    const transactionId = webhookData.transaction_data?.id || webhookData.transaction?.id || purchaseId;
-
-    console.log(`📋 Purchase ${purchaseId} - Status: ${status} - Event: ${eventType} - Transaction: ${transactionId}`);
 
     if (!purchaseId) {
       console.error('❌ Missing purchase ID in webhook');
       return new Response('Missing purchase ID', { status: 400 });
     }
+
+    console.log(`📋 Webhook for Purchase ${purchaseId} - Verifying with CHIP API...`);
+
+    // 🔒 SECURITY: Query CHIP API to verify payment status (don't trust webhook payload)
+    const verifyResponse = await fetch(`${CHIP_BASE_URL}/purchases/${purchaseId}/`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${CHIP_API_KEY}`,
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (!verifyResponse.ok) {
+      console.error(`❌ Failed to verify purchase from CHIP API: ${verifyResponse.status}`);
+      return new Response('Failed to verify purchase', { status: 500 });
+    }
+
+    const chipPurchaseData = await verifyResponse.json();
+    console.log('✅ Verified purchase from CHIP API:', JSON.stringify(chipPurchaseData, null, 2));
+
+    // Use verified data from API, not webhook payload
+    const status = chipPurchaseData.status;
+    const eventType = webhookData.event_type || 'purchase.updated';
+    const transactionId = chipPurchaseData.transaction_data?.id || chipPurchaseData.transaction?.id || purchaseId;
+
+    console.log(`📋 Purchase ${purchaseId} - Verified Status: ${status} - Event: ${eventType} - Transaction: ${transactionId}`);
 
     // Find payment record by CHIP purchase ID
     const { data: payment, error: paymentError } = await supabase

@@ -236,7 +236,10 @@ export default function CreditsTopup() {
     try {
       setProcessing(true);
 
-      // Create Billplz payment for credits top-up
+      // Create CHIP payment for credits top-up with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
       const { data, error } = await supabase.functions.invoke('billplz-credits-topup', {
         body: {
           user_id: user.id,
@@ -245,6 +248,8 @@ export default function CreditsTopup() {
         }
       });
 
+      clearTimeout(timeoutId);
+
       if (error) throw error;
 
       // Open payment page in new tab
@@ -252,7 +257,7 @@ export default function CreditsTopup() {
 
       toast({
         title: 'Redirecting to Payment',
-        description: 'Please complete your payment with CHIP in the new window.',
+        description: 'Please complete your payment in the new window.',
       });
 
     } catch (error: any) {
