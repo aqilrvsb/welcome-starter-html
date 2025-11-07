@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useDynamicPricing } from '@/hooks/useDynamicPricing';
 import Swal from 'sweetalert2';
-import { formatDistanceToNow, format, parseISO, startOfMonth, isSameMonth } from 'date-fns';
+import { formatDistanceToNow, format, parseISO, startOfMonth, isSameMonth, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
 import { motion } from 'framer-motion';
 
 interface Transaction {
@@ -64,14 +64,40 @@ export default function CreditsTopup() {
   const [accountType, setAccountType] = useState<'trial' | 'pro'>('trial');
   const [topupAmount, setTopupAmount] = useState<number>(20); // Default RM20
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [allTransactions, setAllTransactions] = useState<Transaction[]>([]); // Store all transactions
+  const [filterDate, setFilterDate] = useState<string>(format(new Date(), 'yyyy-MM-dd')); // Default to today
 
   const predefinedAmounts = [10, 20, 50, 100];
+
+  // Filter transactions by date
+  const filterTransactionsByDate = (allTrans: Transaction[], dateStr: string) => {
+    if (!dateStr) {
+      setTransactions(allTrans);
+      return;
+    }
+
+    const selectedDate = parseISO(dateStr);
+    const dayStart = startOfDay(selectedDate);
+    const dayEnd = endOfDay(selectedDate);
+
+    const filtered = allTrans.filter((trans) => {
+      const transDate = parseISO(trans.created_at);
+      return isWithinInterval(transDate, { start: dayStart, end: dayEnd });
+    });
+
+    setTransactions(filtered);
+  };
 
   useEffect(() => {
     if (user) {
       loadCreditsInfo();
     }
   }, [user]);
+
+  // Re-filter when filter date changes
+  useEffect(() => {
+    filterTransactionsByDate(allTransactions, filterDate);
+  }, [filterDate]);
 
   // Handle success/failed redirects from CHIP payment
   useEffect(() => {
@@ -200,12 +226,14 @@ export default function CreditsTopup() {
         });
       }
 
-      // Sort by date (newest first) and limit to 50
+      // Sort by date (newest first)
       allTransactions.sort((a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
 
-      setTransactions(allTransactions.slice(0, 50));
+      setAllTransactions(allTransactions); // Store all transactions
+      // Filter by today's date initially
+      filterTransactionsByDate(allTransactions, filterDate);
 
     } catch (error: any) {
       console.error('Error loading credits:', error);
@@ -518,13 +546,54 @@ export default function CreditsTopup() {
               <div className="p-2 rounded-lg bg-primary/10">
                 <Wallet className="h-5 w-5 text-primary" />
               </div>
-              <div>
-                <CardTitle>Recent Transactions</CardTitle>
-                <CardDescription className="mt-1">Your latest credits transactions</CardDescription>
+              <div className="flex-1">
+                <CardTitle>Transactions History</CardTitle>
+                <CardDescription className="mt-1">Filter and view your credits transactions</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
+            {/* Date Filter */}
+            <div className="mb-6 p-4 bg-muted/50 rounded-lg">
+              <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+                <div className="flex-1">
+                  <Label htmlFor="filter-date" className="text-sm font-medium mb-2 block">
+                    Filter by Date
+                  </Label>
+                  <Input
+                    id="filter-date"
+                    type="date"
+                    value={filterDate}
+                    onChange={(e) => setFilterDate(e.target.value)}
+                    className="max-w-xs"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFilterDate(format(new Date(), 'yyyy-MM-dd'))}
+                  >
+                    Today
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setFilterDate('')}
+                  >
+                    All Transactions
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-2 text-sm text-muted-foreground">
+                {filterDate ? (
+                  <>Showing transactions for <span className="font-medium">{format(new Date(filterDate), 'MMMM dd, yyyy')}</span> ({transactions.length} found)</>
+                ) : (
+                  <>Showing all transactions ({transactions.length} total)</>
+                )}
+              </div>
+            </div>
+
             {transactions.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-8">
                 No transactions yet

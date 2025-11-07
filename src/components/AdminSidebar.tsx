@@ -1,4 +1,4 @@
-import { Shield, Users, LayoutDashboard, Phone, MessageSquare, Target, CreditCard, LogOut, DollarSign, BarChart3, FileText, UserCheck, Lightbulb, Settings, Receipt } from "lucide-react"
+import { Shield, Users, LayoutDashboard, Phone, MessageSquare, Target, CreditCard, LogOut, DollarSign, BarChart3, FileText, UserCheck, Lightbulb, Settings, Receipt, Wallet } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useCustomAuth } from "@/contexts/CustomAuthContext"
 import {
@@ -39,6 +39,11 @@ const adminMenuItems = [
     title: "Transactions",
     url: "/admin/transactions",
     icon: Receipt,
+  },
+  {
+    title: "Manual Credits",
+    url: "/admin/manual-credits",
+    icon: Wallet,
   },
   {
     title: "Revenue",

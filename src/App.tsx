@@ -39,6 +39,7 @@ import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminRevenue from "./pages/admin/AdminRevenue";
 import AdminAnalytics from "./pages/admin/AdminAnalytics";
 import AdminUsers from "./pages/admin/AdminUsers";
+import AdminManualCredits from "./pages/admin/AdminManualCredits";
 import AdminCallLogs from "./pages/admin/AdminCallLogs";
 import AdminContacts from "./pages/admin/AdminContacts";
 import AdminCampaigns from "./pages/admin/AdminCampaigns";
@@ -272,6 +273,14 @@ function App() {
                         element={
                           <CustomProtectedRoute>
                             <AdminUsers />
+                          </CustomProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path="/admin/manual-credits"
+                        element={
+                          <CustomProtectedRoute>
+                            <AdminManualCredits />
                           </CustomProtectedRoute>
                         }
                       />
