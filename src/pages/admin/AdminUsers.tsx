@@ -2,8 +2,9 @@ import { motion } from 'framer-motion';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Users, Mail, Clock, CreditCard, Phone, Eye, EyeOff, Edit2, ExternalLink } from 'lucide-react';
+import { Users, Mail, Clock, CreditCard, Phone, Eye, EyeOff, Edit2, ExternalLink, Calendar } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { format, parseISO } from 'date-fns';
 import {
   Table,
   TableBody,
@@ -353,6 +354,7 @@ export default function AdminUsers() {
                       <TableHead>Account Type</TableHead>
                       <TableHead>Pro Minutes</TableHead>
                       <TableHead>Trial Minutes</TableHead>
+                      <TableHead>Date Registered</TableHead>
                       <TableHead>SIP Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -409,6 +411,19 @@ export default function AdminUsers() {
                               {(user.trial_balance_minutes || 0).toFixed(1)} min
                             </span>
                           </button>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <p className="text-sm font-medium">
+                                {format(parseISO(user.created_at), 'MMM dd, yyyy')}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {format(parseISO(user.created_at), 'HH:mm')}
+                              </p>
+                            </div>
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Select
