@@ -1,0 +1,25 @@
+project_id = "ahexnoaazbveiyhplfrc"
+
+[functions.batch-call]
+verify_jwt = false
+
+[functions.batch-call-v2]
+verify_jwt = false
+
+[functions.campaign-batch-list]
+verify_jwt = false
+
+[functions.campaign-batch-detail]
+verify_jwt = false
+
+[functions.vapi-webhook]
+verify_jwt = false
+
+[functions.ai-call-handler]
+verify_jwt = false
+
+[functions.ai-call-handler-azure]
+verify_jwt = false
+
+[functions.billplz-credits-topup]
+verify_jwt = false
