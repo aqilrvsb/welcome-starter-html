@@ -252,6 +252,131 @@ async function deductCreditsAfterCall(userId: string, callDurationMinutes: numbe
 }
 
 // ============================================================================
+// VOICEMAIL DETECTION - Detect voicemail/answering machine and terminate call
+// ============================================================================
+
+const VOICEMAIL_PATTERNS = [
+  // English patterns
+  'voice message',
+  'voice mail',
+  'voicemail',
+  'leave a message',
+  'leave your message',
+  'record your message',
+  'after the tone',
+  'after the beep',
+  'not available',
+  'is not available',
+  'cannot take your call',
+  'please leave',
+  'hang up',
+  'press one',
+  'press 1',
+  'automated',
+  'answering machine',
+  // Malay patterns
+  'mesej suara',
+  'tinggalkan mesej',
+  'rakam mesej',
+  'tidak dapat dihubungi',
+  'sila tinggalkan',
+  'selepas nada',
+  // Common voicemail system phrases
+  'to leave a callback',
+  'mailbox',
+  'greeting',
+  'the person you are calling',
+  'the number you have dialed',
+  'subscriber',
+  'not reachable',
+  'unavailable',
+  'invalid option',
+  'more options',
+  'listen to more',
+  // Additional patterns from your logs
+  'automated voice',
+  'mesej sistem',
+  'voice mesej',
+  'form options',
+];
+
+/**
+ * Detect if the transcribed text is from a voicemail/answering machine
+ * Returns true if voicemail is detected
+ */
+function detectVoicemail(transcript: string): boolean {
+  const lowerTranscript = transcript.toLowerCase();
+
+  // Check if transcript matches any voicemail pattern
+  for (const pattern of VOICEMAIL_PATTERNS) {
+    if (lowerTranscript.includes(pattern.toLowerCase())) {
+      return true;
+    }
+  }
+
+  // Additional heuristic: Long first message with multiple instructions
+  // Voicemail systems typically have long greeting messages
+  if (lowerTranscript.length > 100 &&
+      (lowerTranscript.includes('press') || lowerTranscript.includes('option') || lowerTranscript.includes('message'))) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Update call status in database
+ */
+async function updateCallStatus(userId: string, callId: string, status: string, reason?: string) {
+  try {
+    const { error } = await supabaseAdmin
+      .from('call_logs')
+      .update({
+        status: status,
+        details: reason || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('call_id', callId);
+
+    if (error) {
+      console.error('❌ Failed to update call status:', error);
+    } else {
+      console.log(`✅ Call status updated to "${status}"`);
+    }
+  } catch (err) {
+    console.error('❌ Error updating call status:', err);
+  }
+}
+
+/**
+ * Hangup call via FreeSWITCH ESL
+ */
+async function hangupCall(callId: string) {
+  try {
+    const conn = await Deno.connect({
+      hostname: FREESWITCH_HOST || '178.128.57.106',
+      port: FREESWITCH_ESL_PORT,
+    });
+
+    // Authenticate
+    await readESLResponse(conn);
+    await sendESLCommand(conn, `auth ${FREESWITCH_ESL_PASSWORD}`);
+    await readESLResponse(conn);
+
+    // Send hangup command
+    const hangupCmd = `api uuid_kill ${callId}`;
+    console.log(`📞 Sending hangup: ${hangupCmd}`);
+    await sendESLCommand(conn, hangupCmd);
+    const response = await readESLResponse(conn);
+    console.log(`📞 Hangup response: ${response}`);
+
+    conn.close();
+  } catch (err) {
+    console.error('❌ Error hanging up call:', err);
+  }
+}
+
+// ============================================================================
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -1166,6 +1291,23 @@ async function transcribeAudio(session: any, audioBytes: Uint8Array) {
       // Only accept transcripts with reasonable confidence (> 0.3) or length (> 2 chars)
       if (transcript.length > 1 && (confidence > 0.3 || transcript.length > 2)) {
         console.log(`🗣️  Customer: "${transcript}" (confidence: ${confidence.toFixed(2)})`);
+
+        // 📞 VOICEMAIL DETECTION: Check if this is a voicemail system
+        const voicemailDetected = detectVoicemail(transcript);
+        if (voicemailDetected) {
+          console.log(`📞 VOICEMAIL DETECTED! Terminating call immediately...`);
+          console.log(`   └─ Trigger phrase: "${transcript.substring(0, 80)}..."`);
+
+          // Update call status to "no-answer" (voicemail = customer didn't actually answer)
+          await updateCallStatus(session.userId, session.callId, 'no-answer', 'Voicemail detected - auto terminated');
+
+          // Hangup the call immediately
+          await hangupCall(session.callId);
+
+          // Mark session as ended
+          session.callEnded = true;
+          return; // Don't continue processing
+        }
 
         session.transcript.push({ speaker: 'user', text: transcript, timestamp: new Date() });
         session.conversationHistory.push({ role: 'user', content: transcript });
