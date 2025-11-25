@@ -325,31 +325,7 @@ function detectVoicemail(transcript: string): boolean {
 }
 
 /**
- * Update call status in database
- */
-async function updateCallStatus(userId: string, callId: string, status: string, reason?: string) {
-  try {
-    const { error } = await supabaseAdmin
-      .from('call_logs')
-      .update({
-        status: status,
-        details: reason || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('call_id', callId);
-
-    if (error) {
-      console.error('❌ Failed to update call status:', error);
-    } else {
-      console.log(`✅ Call status updated to "${status}"`);
-    }
-  } catch (err) {
-    console.error('❌ Error updating call status:', err);
-  }
-}
-
-/**
- * Hangup call via FreeSWITCH ESL
+ * Hangup call via FreeSWITCH ESL (for voicemail detection)
  */
 async function hangupCall(callId: string) {
   try {
@@ -1299,7 +1275,7 @@ async function transcribeAudio(session: any, audioBytes: Uint8Array) {
           console.log(`   └─ Trigger phrase: "${transcript.substring(0, 80)}..."`);
 
           // Update call status to "no-answer" (voicemail = customer didn't actually answer)
-          await updateCallStatus(session.userId, session.callId, 'no-answer', 'Voicemail detected - auto terminated');
+          await updateCallStatus(session.callId, 'no-answer');
 
           // Hangup the call immediately
           await hangupCall(session.callId);
