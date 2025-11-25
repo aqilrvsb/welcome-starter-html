@@ -825,8 +825,9 @@ async function monitorCallAnswerEvent(callId: string, websocketUrl: string) {
           // 📊 Update status to "answered"
           await updateCallStatus(callId, 'answered');
 
+          // 📞 AI speaks greeting immediately (good customer experience)
+          // Voicemail detection happens in parallel when we receive customer audio
           console.log(`📞 Triggering greeting for ${callId}...`);
-          // Let AI generate first message from system prompt
           await getAIResponse(session, "[START_CALL]");
           session.hasGreeted = true;
         } else if (!session) {
@@ -1062,6 +1063,7 @@ NOW FOLLOW THE USER'S PROMPT BELOW:
     isCallAnswered: false, // Track if customer has answered
     hasGreeted: false, // Track if we've sent first message
     lastAudioActivityTime: Date.now(), // Track silence detection
+    earlyVoicemailChecked: false, // Track if early voicemail check has been done
     costs: { azure_stt: 0, llm: 0, tts: 0 },
     audioFileCounter: 0, // Track temp file numbers for playback
     recordingUrl: recordingUrl, // Store recording URL from metadata
@@ -1155,7 +1157,17 @@ async function handleMediaStream(socket: WebSocket, audioData: ArrayBuffer) {
 
   const hasSilence = timeSinceLastActivity >= requiredSilence;
 
-  if (hasMinimumAudio && hasSilence) {
+  // 📞 EARLY VOICEMAIL DETECTION: Force transcription after 3 seconds even without silence
+  // Voicemail systems talk continuously, so normal silence-based endpointing won't trigger
+  // This catches voicemail within 3-4 seconds instead of waiting 20+ seconds
+  const forceEarlyCheck = estimatedSeconds >= 3.0 && !session.earlyVoicemailChecked;
+
+  if (forceEarlyCheck) {
+    console.log(`📞 EARLY VOICEMAIL CHECK: ${estimatedSeconds.toFixed(1)}s of continuous audio - checking for voicemail...`);
+    session.earlyVoicemailChecked = true; // Only do this once per call
+  }
+
+  if (hasMinimumAudio && (hasSilence || forceEarlyCheck)) {
     console.log(`🎯 Smart endpointing: ${estimatedSeconds.toFixed(1)}s audio → ${requiredSilence}ms timeout → processing ${totalSize} bytes...`);
     session.isProcessingAudio = true;
 
